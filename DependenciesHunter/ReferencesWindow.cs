@@ -1,42 +1,40 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace DependenciesHunter
+namespace DH
 {
-	public class DependenciesHunterWindow : EditorWindow
+	public class ReferencesWindow : EditorWindow
 	{
 		private const float TabLength = 60f;
 		private const TextAnchor ResultButtonAlignment = TextAnchor.MiddleLeft;
-		
+
+		private ReferencesSearchService _dependenciesHunter;
+		private Dictionary<Object, List<string>> _lastResults;
+
 		private readonly Vector2 _resultButtonSize = new Vector2(300f, 18f);
 
-		private bool _directDependencies;
-		private bool _allDependencies;
 		private Object[] _selectedObjects;
+
+		private bool[] _foldouts;
+
 		private float _workTime;
 
-		private DependenciesHunter _dependenciesHunter;
-
 		private Vector2 _scrollPos = Vector2.zero;
-		private bool[] _foldouts;
 		private Vector2[] _foldoutsScrolls;
-		private bool _showDirectDependencies = true;
 
-		[MenuItem("Assets/Dependencies Hunter/Which objects use it?", false, 20)]
-		public static void HuntForDirectDependencies()
+		[MenuItem("Assets/Find .meta references", false, 20)]
+		public static void FindReferences()
 		{
-			var window = GetWindow<DependenciesHunterWindow>();
-			window.Go(true, false);
+			var window = GetWindow<ReferencesWindow>();
+			window.Start();
 		}
 
-		private void Go(bool directDependencies, bool allDependencies)
+		private void Start()
 		{
-			_directDependencies = directDependencies;
-			_allDependencies = allDependencies;
-			_showDirectDependencies = !allDependencies;
 			Show();
 
 			var startTime = Time.realtimeSinceStartup;
@@ -45,10 +43,10 @@ namespace DependenciesHunter
 
 			if (_dependenciesHunter == null)
 			{
-				_dependenciesHunter = new DependenciesHunter();
+				_dependenciesHunter = new ReferencesSearchService();
 			}
-			
-			_dependenciesHunter.GetDependenciesRevert(_selectedObjects, _directDependencies, _allDependencies);
+
+			_lastResults = _dependenciesHunter.GetReferences(_selectedObjects);
 
 			EditorUtility.DisplayProgressBar("DependenciesHunter", "Unloading Unused Assets", 1f);
 			EditorUtility.UnloadUnusedAssetsImmediate();
@@ -60,6 +58,7 @@ namespace DependenciesHunter
 			{
 				_foldouts[0] = true;
 			}
+
 			_foldoutsScrolls = new Vector2[_foldouts.Length];
 		}
 
@@ -73,14 +72,12 @@ namespace DependenciesHunter
 
 		private void OnGUI()
 		{
-			if (_dependenciesHunter == null || _selectedObjects == null
-				|| _directDependencies && _dependenciesHunter.DirectResults == null
-				|| _allDependencies && _dependenciesHunter.AllResults == null)
+			if (_lastResults == null)
 			{
 				return;
 			}
 
-			if (_selectedObjects.Any(selectedObject => selectedObject == null))
+			if (_selectedObjects == null || _selectedObjects.Any(selectedObject => selectedObject == null))
 			{
 				Clear();
 				return;
@@ -90,12 +87,7 @@ namespace DependenciesHunter
 
 			GUILayout.Label($"Found in: {_workTime} s");
 
-			if (_directDependencies && _allDependencies)
-			{
-				_showDirectDependencies = EditorGUILayout.Toggle("Only direct dependencies", _showDirectDependencies);
-			}
-
-			var results = _showDirectDependencies ? _dependenciesHunter.DirectResults : _dependenciesHunter.AllResults;
+			var results = _lastResults;
 
 			_scrollPos = GUILayout.BeginScrollView(_scrollPos);
 
@@ -125,9 +117,10 @@ namespace DependenciesHunter
 						var alignment = GUI.skin.button.alignment;
 						GUI.skin.button.alignment = ResultButtonAlignment;
 
-						if (GUILayout.Button(guiContent, GUILayout.MinWidth(_resultButtonSize.x), GUILayout.Height(_resultButtonSize.y)))
+						if (GUILayout.Button(guiContent, GUILayout.MinWidth(_resultButtonSize.x),
+							GUILayout.Height(_resultButtonSize.y)))
 						{
-							Selection.objects = new[] { AssetDatabase.LoadMainAssetAtPath(resultPath) };
+							Selection.objects = new[] {AssetDatabase.LoadMainAssetAtPath(resultPath)};
 						}
 
 						GUI.skin.button.alignment = alignment;
@@ -151,5 +144,5 @@ namespace DependenciesHunter
 		{
 			Clear();
 		}
-	} 
+	}
 }

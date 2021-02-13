@@ -5,26 +5,26 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace DependenciesHunter
+namespace DH
 {
-	public class UnusedAssetsWindow : EditorWindow
+	public class UnreferencedAssetsWindow : EditorWindow
 	{
 		private const TextAnchor ResultButtonAlignment = TextAnchor.MiddleLeft;
-		private readonly Vector2 _resultButtonSize = new Vector2(300f, 18f);
 
-		private DependenciesHunter _dependenciesHunter;
-		private List<string> _iconPaths;
 		private bool _ignoreProjectChange;
 
 		private readonly List<string> _unusedAssets = new List<string>();
-
-		private Vector2 _scroll = Vector2.zero;
+		
 		private readonly Dictionary<string, bool> _toggles = new Dictionary<string, bool>();
+		private List<string> _iconPaths;
 
-		[MenuItem("Platform/Tools/References/Dependencies Hunter (Find unused assets)")]
-		public static void HuntForDirectDependencies()
+		private readonly Vector2 _resultButtonSize = new Vector2(300f, 18f);
+		private Vector2 _scroll = Vector2.zero;
+
+		[MenuItem("Tools/References/Find unreferenced assets")]
+		public static void LaunchUnreferencedAssetsWindow()
 		{
-			var window = GetWindow<UnusedAssetsWindow>();
+			var window = GetWindow<UnreferencedAssetsWindow>();
 			window.SearchForUnusedAssets();
 		}
 
@@ -32,23 +32,26 @@ namespace DependenciesHunter
 		{
 			Clear();
 			
-			_dependenciesHunter = new DependenciesHunter();
 			Show();
+			
+			var assetPaths = AssetDatabase.GetAllAssetPaths();
 
-			_dependenciesHunter.CreateMapIfNeeded(true, false);
-			var map = _dependenciesHunter.DirectMap;
+			ReferencesSearchUtilities.FillReverseDependenciesMap(assetPaths, out var map, false, 
+				"Creating a map of direct dependencies");
+
+			EditorUtility.ClearProgressBar();
 
 			var count = 0;
 			foreach (var mapElement in map)
 			{
-				EditorUtility.DisplayProgressBar("Unused Assets", "Searching for unused assets",
+				EditorUtility.DisplayProgressBar("Unreferenced Assets", "Searching for unreferenced assets",
 					(float) count / map.Count);
 				count++;
 
 				if (ShouldBeChecked(mapElement.Key) && mapElement.Value.Count == 0)
 				{
 					_unusedAssets.Add(mapElement.Key);
-					_toggles.Add(mapElement.Key, true);
+					_toggles.Add(mapElement.Key, false);
 				}
 			}
 
@@ -79,12 +82,7 @@ namespace DependenciesHunter
 				return false;
 			}
 
-			if (path.Contains("/Resources/"))
-			{
-				return false;
-			}
-
-			if (path.Contains("/Editor/"))
+			if (path.Contains("/Resources/") || path.Contains("/Editor/"))
 			{
 				return false;
 			}
@@ -135,12 +133,9 @@ namespace DependenciesHunter
 		{
 			_ignoreProjectChange = true;
 
-			for (var i = 0; i < _unusedAssets.Count; i++)
+			foreach (var asset in _unusedAssets.Where(asset => _toggles[asset]))
 			{
-				if (_toggles[_unusedAssets[i]])
-				{
-					AssetDatabase.DeleteAsset(_unusedAssets[i]);
-				}
+				AssetDatabase.DeleteAsset(asset);
 			}
 
 			_ignoreProjectChange = false;
@@ -156,7 +151,6 @@ namespace DependenciesHunter
 			_unusedAssets.Clear();
 			_toggles.Clear();
 			_iconPaths = null;
-			_dependenciesHunter = null;
 
 			EditorUtility.UnloadUnusedAssetsImmediate();
 		}
@@ -165,11 +159,12 @@ namespace DependenciesHunter
 		{
 			if (_unusedAssets.Count == 0)
 			{
-				EditorGUILayout.LabelField("No unused assets found.");
+				EditorGUILayout.LabelField("No unreferenced assets found.");
 				return;
 			}
 
-			EditorGUILayout.LabelField($"Unused Assets: {_unusedAssets.Count}");
+			EditorGUILayout.LabelField($"Unreferenced Assets: {_unusedAssets.Count}");
+			EditorGUILayout.LabelField("The Resources & Editor folders are skipped.");
 
 			EditorGUILayout.BeginHorizontal();
 
