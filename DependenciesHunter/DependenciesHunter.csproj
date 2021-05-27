@@ -6,10 +6,10 @@
 
     <ItemGroup>
       <Reference Include="UnityEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-        <HintPath>..\..\..\..\..\Applications\Unity\Hub\Editor\2019.4.5f1\Unity.app\Contents\Managed\UnityEditor.dll</HintPath>
+        <HintPath>..\..\..\..\..\Applications\Unity\Unity.app\Contents\Managed\UnityEditor.dll</HintPath>
       </Reference>
       <Reference Include="UnityEngine, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-        <HintPath>..\..\..\..\..\Applications\Unity\Hub\Editor\2019.4.5f1\Unity.app\Contents\Managed\UnityEngine.dll</HintPath>
+        <HintPath>..\..\..\..\..\Applications\Unity\Unity.app\Contents\Managed\UnityEngine.dll</HintPath>
       </Reference>
     </ItemGroup>
 

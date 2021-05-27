@@ -5,10 +5,15 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace DH
+namespace DependenciesHunter
 {
-	public class UnreferencedAssetsWindow : EditorWindow
+	/// <summary>
+	/// Lists all unreferenced assets in a project.
+	/// </summary>
+	public class AllProjectAssetsReferencesWindow : EditorWindow
 	{
+		private ProjectAssetsAnalysisHelper _service;
+		
 		private const TextAnchor ResultButtonAlignment = TextAnchor.MiddleLeft;
 
 		private bool _ignoreProjectChange;
@@ -16,7 +21,6 @@ namespace DH
 		private readonly List<string> _unusedAssets = new List<string>();
 		
 		private readonly Dictionary<string, bool> _toggles = new Dictionary<string, bool>();
-		private List<string> _iconPaths;
 
 		private readonly Vector2 _resultButtonSize = new Vector2(300f, 18f);
 		private Vector2 _scroll = Vector2.zero;
@@ -24,20 +28,25 @@ namespace DH
 		[MenuItem("Tools/References/Find unreferenced assets")]
 		public static void LaunchUnreferencedAssetsWindow()
 		{
-			var window = GetWindow<UnreferencedAssetsWindow>();
-			window.SearchForUnusedAssets();
+			var window = GetWindow<AllProjectAssetsReferencesWindow>();
+			window.ListAllUnusedAssetsInProject();
 		}
 
-		private void SearchForUnusedAssets()
+		private void ListAllUnusedAssetsInProject()
 		{
+			if (_service == null)
+			{
+				_service = new ProjectAssetsAnalysisHelper();
+			}
+			
 			Clear();
 			
 			Show();
 			
 			var assetPaths = AssetDatabase.GetAllAssetPaths();
 
-			ReferencesSearchUtilities.FillReverseDependenciesMap(assetPaths, out var map, false, 
-				"Creating a map of direct dependencies");
+			DependenciesMapUtilities.FillReverseDependenciesMap(assetPaths, out var map, false, 
+				"Creating a map of dependencies");
 
 			EditorUtility.ClearProgressBar();
 
@@ -48,7 +57,7 @@ namespace DH
 					(float) count / map.Count);
 				count++;
 
-				if (ShouldBeChecked(mapElement.Key) && mapElement.Value.Count == 0)
+				if (_service.IsTargetOfAnalysis(mapElement.Key) && mapElement.Value.Count == 0)
 				{
 					_unusedAssets.Add(mapElement.Key);
 					_toggles.Add(mapElement.Key, false);
@@ -57,67 +66,7 @@ namespace DH
 
 			EditorUtility.ClearProgressBar();
 		}
-
-		private bool ShouldBeChecked(string path)
-		{
-			var type = AssetDatabase.GetMainAssetTypeAtPath(path);
-
-			if (type == typeof(MonoScript) || type == typeof(DefaultAsset))
-			{
-				return false;
-			}
-
-			if (type == typeof(SceneAsset))
-			{
-				var scenes = EditorBuildSettings.scenes;
-
-				if (scenes.Any(scene => scene.path == path))
-				{
-					return false;
-				}
-			}
-
-			if (type == typeof(Texture2D) && UsedAsIcon(path))
-			{
-				return false;
-			}
-
-			if (path.Contains("/Resources/") || path.Contains("/Editor/"))
-			{
-				return false;
-			}
-
-			return true;
-		}
 		
-		private bool UsedAsIcon(string texturePath)
-		{
-			if (_iconPaths == null)
-			{
-				FindAllIcons();
-			}
-
-			return _iconPaths.Contains(texturePath);
-		}
-
-		private void FindAllIcons()
-		{
-			_iconPaths = new List<string>();
-
-			var icons = new List<Texture2D>();
-			var targetGroups = Enum.GetValues(typeof(BuildTargetGroup));
-
-			foreach (var targetGroup in targetGroups)
-			{
-				icons.AddRange(PlayerSettings.GetIconsForTargetGroup((BuildTargetGroup) targetGroup));
-			}
-
-			foreach (var icon in icons)
-			{
-				_iconPaths.Add(AssetDatabase.GetAssetPath(icon));
-			}
-		}
-
 		private void SetToggles(bool on)
 		{
 			var keys = new string[_toggles.Keys.Count];
@@ -143,14 +92,14 @@ namespace DH
 			AssetDatabase.SaveAssets();
 			AssetDatabase.Refresh();
 
-			SearchForUnusedAssets();
+			ListAllUnusedAssetsInProject();
 		}
 
 		private void Clear()
 		{
 			_unusedAssets.Clear();
 			_toggles.Clear();
-			_iconPaths = null;
+			_service = null;
 
 			EditorUtility.UnloadUnusedAssetsImmediate();
 		}
@@ -232,6 +181,71 @@ namespace DH
 		private void OnDestroy()
 		{
 			Clear();
+		}
+	}
+
+	public class ProjectAssetsAnalysisHelper
+	{
+		private List<string> _iconPaths;
+		
+		public bool IsTargetOfAnalysis(string path)
+		{
+			var type = AssetDatabase.GetMainAssetTypeAtPath(path);
+
+			if (type == typeof(MonoScript) || type == typeof(DefaultAsset))
+			{
+				return false;
+			}
+
+			if (type == typeof(SceneAsset))
+			{
+				var scenes = EditorBuildSettings.scenes;
+
+				if (scenes.Any(scene => scene.path == path))
+				{
+					return false;
+				}
+			}
+
+			if (type == typeof(Texture2D) && UsedAsIcon(path))
+			{
+				return false;
+			}
+
+			if (path.Contains("/Resources/") || path.Contains("/Editor/"))
+			{
+				return false;
+			}
+
+			return true;
+		}
+		
+		private bool UsedAsIcon(string texturePath)
+		{
+			if (_iconPaths == null)
+			{
+				FindAllIcons();
+			}
+
+			return _iconPaths.Contains(texturePath);
+		}
+
+		private void FindAllIcons()
+		{
+			_iconPaths = new List<string>();
+
+			var icons = new List<Texture2D>();
+			var targetGroups = Enum.GetValues(typeof(BuildTargetGroup));
+
+			foreach (var targetGroup in targetGroups)
+			{
+				icons.AddRange(PlayerSettings.GetIconsForTargetGroup((BuildTargetGroup) targetGroup));
+			}
+
+			foreach (var icon in icons)
+			{
+				_iconPaths.Add(AssetDatabase.GetAssetPath(icon));
+			}
 		}
 	}
 }

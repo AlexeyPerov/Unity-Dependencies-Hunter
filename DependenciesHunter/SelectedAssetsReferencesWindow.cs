@@ -5,14 +5,18 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace DH
+namespace DependenciesHunter
 {
-	public class ReferencesWindow : EditorWindow
+	/// <summary>
+	/// Lists all references of the selected assets.
+	/// </summary>
+	public class SelectedAssetsReferencesWindow : EditorWindow
 	{
+		private SelectedAssetsAnalysisHelper _service;
+		
 		private const float TabLength = 60f;
 		private const TextAnchor ResultButtonAlignment = TextAnchor.MiddleLeft;
-
-		private ReferencesSearchService _dependenciesHunter;
+		
 		private Dictionary<Object, List<string>> _lastResults;
 
 		private readonly Vector2 _resultButtonSize = new Vector2(300f, 18f);
@@ -29,24 +33,24 @@ namespace DH
 		[MenuItem("Assets/Find .meta references", false, 20)]
 		public static void FindReferences()
 		{
-			var window = GetWindow<ReferencesWindow>();
+			var window = GetWindow<SelectedAssetsReferencesWindow>();
 			window.Start();
 		}
 
 		private void Start()
 		{
+			if (_service == null)
+			{
+				_service = new SelectedAssetsAnalysisHelper();
+			}
+			
 			Show();
 
 			var startTime = Time.realtimeSinceStartup;
 
 			_selectedObjects = Selection.objects;
-
-			if (_dependenciesHunter == null)
-			{
-				_dependenciesHunter = new ReferencesSearchService();
-			}
-
-			_lastResults = _dependenciesHunter.GetReferences(_selectedObjects);
+			
+			_lastResults = _service.GetReferences(_selectedObjects);
 
 			EditorUtility.DisplayProgressBar("DependenciesHunter", "Unloading Unused Assets", 1f);
 			EditorUtility.UnloadUnusedAssetsImmediate();
@@ -65,7 +69,7 @@ namespace DH
 		private void Clear()
 		{
 			_selectedObjects = null;
-			_dependenciesHunter = null;
+			_service = null;
 
 			EditorUtility.UnloadUnusedAssetsImmediate();
 		}
@@ -143,6 +147,56 @@ namespace DH
 		private void OnDestroy()
 		{
 			Clear();
+		}
+	}
+
+	public class SelectedAssetsAnalysisHelper
+	{
+		private Dictionary<string, List<string>> _cachedAssetsMap;
+
+		public Dictionary<Object, List<string>> GetReferences(Object[] selectedObjects)
+		{
+			if (selectedObjects == null)
+			{
+				Debug.Log("No selected objects passed");
+				return new Dictionary<Object, List<string>>();
+			}
+			
+			var assetPaths = AssetDatabase.GetAllAssetPaths();
+
+			if (_cachedAssetsMap == null)
+			{
+				DependenciesMapUtilities.FillReverseDependenciesMap(assetPaths, out _cachedAssetsMap, false, 
+					"Creating a map of dependencies");
+			}
+
+			EditorUtility.ClearProgressBar();
+			
+			GetDependencies(selectedObjects, _cachedAssetsMap, out var result);
+
+			return result;
+		}
+		
+		private static void GetDependencies(IEnumerable<Object> selectedObjects, IReadOnlyDictionary<string, 
+			List<string>> source, out Dictionary<Object, List<string>> results)
+		{
+			results = new Dictionary<Object, List<string>>();
+
+			foreach (var selectedObject in selectedObjects)
+			{
+				var selectedObjectPath = AssetDatabase.GetAssetPath(selectedObject);
+
+				if (source.ContainsKey(selectedObjectPath))
+				{
+					results.Add(selectedObject, source[selectedObjectPath]);
+				}
+				else
+				{
+					Debug.LogWarning("Dependencies Hunter doesn't contain the specified object in the assets map", 
+						selectedObject);
+					results.Add(selectedObject, new List<string>());
+				}
+			}
 		}
 	}
 }
