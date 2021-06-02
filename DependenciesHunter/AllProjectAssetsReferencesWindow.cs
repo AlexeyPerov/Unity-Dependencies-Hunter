@@ -99,7 +99,6 @@ namespace DependenciesHunter
 		{
 			_unusedAssets.Clear();
 			_toggles.Clear();
-			_service = null;
 
 			EditorUtility.UnloadUnusedAssetsImmediate();
 		}
