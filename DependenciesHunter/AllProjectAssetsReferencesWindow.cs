@@ -107,27 +107,19 @@ namespace DependenciesHunter
 		{
 			if (_unusedAssets.Count == 0)
 			{
-				EditorGUILayout.LabelField("No unreferenced assets found.");
+				EditorGUILayout.LabelField("No unreferenced assets to show.");
+
+				if (GUILayout.Button("Run Analysis"))
+				{
+					ListAllUnusedAssetsInProject();
+				}
+				
 				return;
 			}
 
 			EditorGUILayout.LabelField($"Unreferenced Assets: {_unusedAssets.Count}");
 			EditorGUILayout.LabelField("The Resources & Editor folders are skipped.");
-
-			EditorGUILayout.BeginHorizontal();
-
-			if (GUILayout.Button("Check All"))
-			{
-				SetToggles(true);
-			}
-
-			if (GUILayout.Button("Uncheck All"))
-			{
-				SetToggles(false);
-			}
-
-			EditorGUILayout.EndHorizontal();
-
+			
 			_scroll = GUILayout.BeginScrollView(_scroll);
 
 			foreach (var unusedAssetPath in _unusedAssets)
@@ -157,11 +149,14 @@ namespace DependenciesHunter
 			GUILayout.EndScrollView();
 
 			var color = GUI.color;
-			GUI.color = Color.red;
+			
+			var selectedCount = _toggles.Count(x => x.Value);
+			
+			GUI.color = selectedCount > 0 ? Color.red : Color.gray;
 			
 			GUILayout.Space(20);
-
-			if (GUILayout.Button("Remove Selected"))
+			
+			if (GUILayout.Button($"Remove {selectedCount} Selected"))
 			{
 				Remove();
 			}
