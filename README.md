@@ -1,8 +1,6 @@
 # Dependencies Hunter Unity3D Tool
 
-This tool scans all .meta files in your project and detects direct references between them.
-
-This is by far the simplest way to find unused assets in Unity project.
+This tool finds unreferenced assets by scanning .meta files in your Unity project.
 
 There are two options to use it:
 
