@@ -68,17 +68,6 @@ namespace DependenciesHunter
 			EditorUtility.ClearProgressBar();
 		}
 		
-		private void SetToggles(bool on)
-		{
-			var keys = new string[_toggles.Keys.Count];
-			_toggles.Keys.CopyTo(keys, 0);
-
-			foreach (var key in keys)
-			{
-				_toggles[key] = on;
-			}
-		}
-
 		private void Remove()
 		{
 			_ignoreProjectChange = true;
