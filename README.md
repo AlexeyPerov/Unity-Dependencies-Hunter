@@ -1,6 +1,7 @@
 # Dependencies Hunter Unity3D Tool
 
-![stability-wip](https://img.shields.io/badge/stability-work_in_progress-lightgrey.svg)
+![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ##
 
@@ -11,7 +12,7 @@ So you can just copy-paste Dependencies Hunter.cs to your project in any Editor 
 
 ### How it works
 
-At first it calls
+At first, it calls
 ```code
 AssetDatabase.GetAllAssetPaths()
 ```
@@ -24,7 +25,7 @@ AssetDatabase.GetDependencies
 to find dependencies for each of those assets. As a result dependencies map is formed.
 
 Then it simply finds all assets which are not presented as a dependency anywhere.
-Such assets considered as unused if they aren't marked as to be ignored in this analysis.
+Such assets considered as unused if they aren't marked as to be ignored in this analysis (by a list of RegExp patterns).
 
 ### Tools
 
@@ -35,11 +36,12 @@ Their names are speaking.
 
 It is called from Tools/Dependencies Hunter and lists all assets of your project which it considers as unused.
 
-![plot](./Screenshots/window_result.png)
+![plot](./Screenshots/project_analysis.png)
 
 - SelectedAssetsReferencesWindow
 
 This one called from the context menu by "Find References in Project".
-It attempts to find all assets which reference the selected one. 
+It attempts to find all assets which reference the selected ones. 
 
+![plot](./Screenshots/context_menu.png)
 ![plot](./Screenshots/context_menu_result.png)
