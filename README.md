@@ -2,11 +2,6 @@
 
 ![stability-wip](https://img.shields.io/badge/stability-work_in_progress-lightgrey.svg)
 
-#### TODO
-
-- Proper way of managing the list of assets which are considered as "used" by default. It is hardcoded now.
-- General cleanup & UI tuning.
-
 ##
 
 This tool finds unreferenced assets by scanning all files in your Unity project.
