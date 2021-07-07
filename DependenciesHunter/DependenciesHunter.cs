@@ -19,9 +19,28 @@ namespace DependenciesHunter
 
         private readonly List<string> _unusedAssets = new List<string>();
 
+        private const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatterns";
+        
         private Vector2 _scroll = Vector2.zero;
 
         private bool _launchedAtLeastOnce;
+        
+        private readonly List<string> _defaultIgnorePatterns = new List<string>
+        {
+            @"/Resources/",
+            @"/Editor/",
+            @"/Editor Default Resources/",
+            @"/ThirdParty/",
+            @"ProjectSettings/",
+            @"Packages/",
+            @"\.asmdef$",
+            @"link\.xml$",
+            @"\.csv",
+            @"\.md"
+        };
+
+        private List<string> _ignoreInOutputPatterns;
+        private bool _ignorePatternsFoldout;
 
         [MenuItem("Tools/Dependencies Hunter")]
         public static void LaunchUnreferencedAssetsWindow()
@@ -55,12 +74,22 @@ namespace DependenciesHunter
 
                 if (mapElement.Value.Count == 0)
                 {
-                    var cabBeConsideredAsUnused = _service.CabBeConsideredAsUnused(mapElement.Key);
+                    var validAssetType = _service.IsValidAssetType(mapElement.Key);
+                    var validForOutput = false;
 
-                    Debug.Log(
-                        $"Unreferenced Asset: {mapElement.Key}. Cab be considered as unused: {cabBeConsideredAsUnused}");
+                    if (validAssetType)
+                    {
+                        validForOutput = _service.IsValidForOutput(mapElement.Key, _ignoreInOutputPatterns);
 
-                    if (cabBeConsideredAsUnused)
+                        if (!validForOutput)
+                        {
+                            Debug.Log($"Unreferenced Asset: {mapElement.Key} is ignored in output " +
+                                      $"due to specified ignore patterns");
+                            
+                        }
+                    }
+
+                    if (validForOutput)
                     {
                         _unusedAssets.Add(mapElement.Key);
                     }
@@ -78,6 +107,10 @@ namespace DependenciesHunter
 
         private void OnGUI()
         {
+            EditorGUILayout.Separator();
+
+            OnPatternsGUI();
+            
             EditorGUILayout.Separator();
             
             if (GUILayout.Button("Run Analysis", GUILayout.Width(300f)))
@@ -131,6 +164,93 @@ namespace DependenciesHunter
 
             EditorGUILayout.EndVertical();
             GUILayout.EndScrollView();
+        }
+
+        private void OnPatternsGUI()
+        {
+            EnsurePatternsLoaded();
+            
+            _ignorePatternsFoldout = EditorGUILayout.Foldout(_ignorePatternsFoldout, "Ignored in Output Assets Patterns");
+
+            if (!_ignorePatternsFoldout) return;
+
+            var isDirty = false;
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Format: RegExp patterns");
+            if (GUILayout.Button("Set Default", GUILayout.Width(300f)))
+            {
+                _ignoreInOutputPatterns = _defaultIgnorePatterns.ToList();
+                isDirty = true;
+            }
+            
+            EditorGUILayout.EndHorizontal();
+
+            var newCount = Mathf.Max(0, EditorGUILayout.IntField("Count:", _ignoreInOutputPatterns.Count));
+
+            if (newCount != _ignoreInOutputPatterns.Count)
+            {
+                isDirty = true;
+            }
+
+            while (newCount < _ignoreInOutputPatterns.Count)
+            {
+                _ignoreInOutputPatterns.RemoveAt(_ignoreInOutputPatterns.Count - 1);
+            }
+
+            while (newCount > _ignoreInOutputPatterns.Count)
+            {
+                _ignoreInOutputPatterns.Add(string.Empty);
+            }
+
+            for (var i = 0; i < _ignoreInOutputPatterns.Count; i++)
+            {
+                var newValue = EditorGUILayout.TextField(_ignoreInOutputPatterns[i]);
+                if (_ignoreInOutputPatterns[i] != newValue)
+                {
+                    isDirty = true;
+                    _ignoreInOutputPatterns[i] = newValue;
+                }
+            }
+
+            if (isDirty)
+            {
+                SavePatterns();
+            }
+        }
+
+        private void EnsurePatternsLoaded()
+        {
+            if (_ignoreInOutputPatterns != null)
+            {
+                return;
+            }
+            
+            var count = EditorPrefs.GetInt(PATTERNS_PREFS_KEY, -1);
+
+            if (count == -1)
+            {
+                _ignoreInOutputPatterns = _defaultIgnorePatterns.ToList();
+            }
+            else
+            {
+                _ignoreInOutputPatterns = new List<string>();
+                
+                for (var i = 0; i < count; i++)
+                {
+                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
+                }    
+            }
+        }
+
+        private void SavePatterns()
+        {
+            EditorPrefs.SetInt(PATTERNS_PREFS_KEY, _ignoreInOutputPatterns.Count);
+
+            for (var i = 0; i < _ignoreInOutputPatterns.Count; i++)
+            {
+                EditorPrefs.SetString($"{PATTERNS_PREFS_KEY}_{i}", _ignoreInOutputPatterns[i]);
+            }
         }
 
         private void OnDestroy()
@@ -290,33 +410,10 @@ namespace DependenciesHunter
     {
         private List<string> _iconPaths;
 
-        private List<string> _patterns = new List<string>
-        {
-            @"/Resources/",
-            @"/Editor/",
-            @"/Editor Default Resources/",
-            @"/ThirdParty/",
-            @"ProjectSettings/",
-            @"Packages/",
-            @"\.asmdef$",
-            @"link\.xml$",
-            @"\.csv",
-            @"\.md",
-            @"\.spriteatlas"
-        };
-        
-        public bool CabBeConsideredAsUnused(string path)
+        public bool IsValidAssetType(string path)
         {
             var type = AssetDatabase.GetMainAssetTypeAtPath(path);
-
-            foreach (var pattern in _patterns)
-            {
-                if (!string.IsNullOrEmpty(pattern) && Regex.Match(path, pattern).Success)
-                {
-                    return false;
-                }
-            }
-
+            
             if (type == typeof(MonoScript) || type == typeof(DefaultAsset))
             {
                 return false;
@@ -335,6 +432,19 @@ namespace DependenciesHunter
             if (type == typeof(Texture2D) && UsedAsProjectIcon(path))
             {
                 return false;
+            }
+            
+            return true;
+        }
+        
+        public bool IsValidForOutput(string path, List<string> ignoreInOutputPatterns)
+        {
+            foreach (var pattern in ignoreInOutputPatterns)
+            {
+                if (!string.IsNullOrEmpty(pattern) && Regex.Match(path, pattern).Success)
+                {
+                    return false;
+                }
             }
             
             return true;
