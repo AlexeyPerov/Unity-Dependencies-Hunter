@@ -19,7 +19,7 @@ namespace DependenciesHunter
 
         private readonly List<string> _unusedAssets = new List<string>();
 
-        private const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatterns";
+        private const string PatternsPrefsKey = "DependencyHunterIgnorePatterns";
         
         private Vector2 _scroll = Vector2.zero;
 
@@ -34,9 +34,10 @@ namespace DependenciesHunter
             @"ProjectSettings/",
             @"Packages/",
             @"\.asmdef$",
-            @"link\.xml$",
-            @"\.csv",
-            @"\.md"
+            @"\.xml$",
+            @"\.csv$",
+            @"\.md$",
+            @"\.json$"
         };
 
         private List<string> _ignoreInOutputPatterns;
@@ -210,7 +211,7 @@ namespace DependenciesHunter
             {
                 for (var i = _ignoreInOutputPatterns.Count; i < newCount; i++)
                 {
-                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
+                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PatternsPrefsKey}_{i}"));
                 }
             }
 
@@ -237,7 +238,7 @@ namespace DependenciesHunter
                 return;
             }
             
-            var count = EditorPrefs.GetInt(PATTERNS_PREFS_KEY, -1);
+            var count = EditorPrefs.GetInt(PatternsPrefsKey, -1);
 
             if (count == -1)
             {
@@ -249,18 +250,18 @@ namespace DependenciesHunter
                 
                 for (var i = 0; i < count; i++)
                 {
-                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
+                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PatternsPrefsKey}_{i}"));
                 }    
             }
         }
 
         private void SavePatterns()
         {
-            EditorPrefs.SetInt(PATTERNS_PREFS_KEY, _ignoreInOutputPatterns.Count);
+            EditorPrefs.SetInt(PatternsPrefsKey, _ignoreInOutputPatterns.Count);
 
             for (var i = 0; i < _ignoreInOutputPatterns.Count; i++)
             {
-                EditorPrefs.SetString($"{PATTERNS_PREFS_KEY}_{i}", _ignoreInOutputPatterns[i]);
+                EditorPrefs.SetString($"{PatternsPrefsKey}_{i}", _ignoreInOutputPatterns[i]);
             }
         }
 
