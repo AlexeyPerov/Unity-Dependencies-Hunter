@@ -183,6 +183,14 @@ namespace DependenciesHunter
                 _ignoreInOutputPatterns = _defaultIgnorePatterns.ToList();
                 isDirty = true;
             }
+
+            if (GUILayout.Button("Save to Clipboard"))
+            {
+                var contents = _ignoreInOutputPatterns.Aggregate("Patterns:", 
+                    (current, t) => current + ("\n" + t));
+
+                EditorGUIUtility.systemCopyBuffer = contents;
+            }
             
             EditorGUILayout.EndHorizontal();
 
@@ -198,9 +206,12 @@ namespace DependenciesHunter
                 _ignoreInOutputPatterns.RemoveAt(_ignoreInOutputPatterns.Count - 1);
             }
 
-            while (newCount > _ignoreInOutputPatterns.Count)
+            if (newCount > _ignoreInOutputPatterns.Count)
             {
-                _ignoreInOutputPatterns.Add(string.Empty);
+                for (var i = _ignoreInOutputPatterns.Count; i < newCount; i++)
+                {
+                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
+                }
             }
 
             for (var i = 0; i < _ignoreInOutputPatterns.Count; i++)
