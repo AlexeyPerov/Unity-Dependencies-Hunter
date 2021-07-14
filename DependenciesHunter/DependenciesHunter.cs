@@ -19,6 +19,7 @@ namespace DependenciesHunter
 
         private readonly List<string> _unusedAssets = new List<string>();
 
+        // ReSharper disable once InconsistentNaming
         private const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatterns";
 
         private int? _pageToShow;
