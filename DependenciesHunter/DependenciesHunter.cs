@@ -19,12 +19,17 @@ namespace DependenciesHunter
 
         private readonly List<string> _unusedAssets = new List<string>();
 
-        private const string PatternsPrefsKey = "DependencyHunterIgnorePatterns";
+        private const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatterns";
+
+        private int? _pageToShow;
+        private const int PageSize = 50;
         
-        private Vector2 _scroll = Vector2.zero;
+        private Vector2 _pagesScroll = Vector2.zero;
+        private Vector2 _assetsScroll = Vector2.zero;
 
         private bool _launchedAtLeastOnce;
         
+        // ReSharper disable once StringLiteralTypo
         private readonly List<string> _defaultIgnorePatterns = new List<string>
         {
             @"/Resources/",
@@ -34,10 +39,12 @@ namespace DependenciesHunter
             @"ProjectSettings/",
             @"Packages/",
             @"\.asmdef$",
-            @"\.xml$",
+            @"link\.xml$",
             @"\.csv$",
             @"\.md$",
-            @"\.json$"
+            @"\.json$",
+            @"\.xml$",
+            @"\.txt$"
         };
 
         private List<string> _ignoreInOutputPatterns;
@@ -51,6 +58,7 @@ namespace DependenciesHunter
 
         private void ListAllUnusedAssetsInProject()
         {
+            _pageToShow = null;
             _launchedAtLeastOnce = true;
             
             if (_service == null)
@@ -124,16 +132,63 @@ namespace DependenciesHunter
             if (_launchedAtLeastOnce)
             {
                 EditorGUILayout.LabelField($"Unreferenced Assets: {_unusedAssets.Count}");
+
+                if (_unusedAssets.Count > 0)
+                {
+                    _pagesScroll = EditorGUILayout.BeginScrollView(_pagesScroll);
+
+                    EditorGUILayout.BeginHorizontal();
+
+                    var prevColor = GUI.color;
+                    GUI.color = !_pageToShow.HasValue ? Color.yellow : Color.white;
+
+                    if (GUILayout.Button("All", GUILayout.Width(30f)))
+                    {
+                        _pageToShow = null;
+                    }
+
+                    GUI.color = prevColor;
+
+                    var totalCount = _unusedAssets.Count;
+                    var pagesCount = totalCount / PageSize + (totalCount % PageSize > 0 ? 1 : 0);
+
+                    for (var i = 0; i < pagesCount; i++)
+                    {
+                        prevColor = GUI.color;
+                        GUI.color = _pageToShow == i ? Color.yellow : Color.white;
+
+                        if (GUILayout.Button((i + 1).ToString(), GUILayout.Width(30f)))
+                        {
+                            _pageToShow = i;
+                        }
+
+                        GUI.color = prevColor;
+                    }
+
+                    EditorGUILayout.EndHorizontal();
+
+                    EditorGUILayout.EndScrollView();
+                }
             }
 
             EditorGUILayout.Separator();
-
-            _scroll = GUILayout.BeginScrollView(_scroll);
+            
+            _assetsScroll = GUILayout.BeginScrollView(_assetsScroll);
 
             EditorGUILayout.BeginVertical();
 
-            foreach (var unusedAssetPath in _unusedAssets)
+            for (var i = 0; i < _unusedAssets.Count; i++)
             {
+                if (_pageToShow.HasValue)
+                {
+                    var page = _pageToShow.Value;
+                    if (i < page * PageSize || i >= (page + 1) * PageSize)
+                    {
+                        continue;
+                    }
+                }
+                
+                var unusedAssetPath = _unusedAssets[i];
                 EditorGUILayout.BeginHorizontal();
 
                 var type = AssetDatabase.GetMainAssetTypeAtPath(unusedAssetPath);
@@ -141,6 +196,7 @@ namespace DependenciesHunter
                 typeName = typeName.Replace("UnityEngine.", string.Empty);
                 typeName = typeName.Replace("UnityEditor.", string.Empty);
 
+                EditorGUILayout.LabelField(i.ToString(), GUILayout.Width(40f));
                 EditorGUILayout.LabelField(typeName, GUILayout.Width(150f));
 
                 var guiContent = EditorGUIUtility.ObjectContent(null, type);
@@ -163,6 +219,8 @@ namespace DependenciesHunter
                 EditorGUILayout.EndHorizontal();
             }
 
+            GUILayout.FlexibleSpace();
+            
             EditorGUILayout.EndVertical();
             GUILayout.EndScrollView();
         }
@@ -211,7 +269,7 @@ namespace DependenciesHunter
             {
                 for (var i = _ignoreInOutputPatterns.Count; i < newCount; i++)
                 {
-                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PatternsPrefsKey}_{i}"));
+                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
                 }
             }
 
@@ -238,7 +296,7 @@ namespace DependenciesHunter
                 return;
             }
             
-            var count = EditorPrefs.GetInt(PatternsPrefsKey, -1);
+            var count = EditorPrefs.GetInt(PATTERNS_PREFS_KEY, -1);
 
             if (count == -1)
             {
@@ -250,18 +308,18 @@ namespace DependenciesHunter
                 
                 for (var i = 0; i < count; i++)
                 {
-                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PatternsPrefsKey}_{i}"));
+                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
                 }    
             }
         }
 
         private void SavePatterns()
         {
-            EditorPrefs.SetInt(PatternsPrefsKey, _ignoreInOutputPatterns.Count);
+            EditorPrefs.SetInt(PATTERNS_PREFS_KEY, _ignoreInOutputPatterns.Count);
 
             for (var i = 0; i < _ignoreInOutputPatterns.Count; i++)
             {
-                EditorPrefs.SetString($"{PatternsPrefsKey}_{i}", _ignoreInOutputPatterns[i]);
+                EditorPrefs.SetString($"{PATTERNS_PREFS_KEY}_{i}", _ignoreInOutputPatterns[i]);
             }
         }
 
