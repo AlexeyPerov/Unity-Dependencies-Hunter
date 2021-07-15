@@ -1,0 +1,14 @@
+{
+  "name": "unity-dependencies-hunter",
+  "version": "0.0.1",
+  "displayName": "Dependencies Hunter",
+  "description": "This tool finds unreferenced assets by scanning all files in your Unity project.",
+  "unity": "2019.3",
+  "keywords": [
+    "tool"
+  ],
+  "author": {
+    "name": "Alexey Perov",
+    "url": "https://github.com/AlexeyPerov/Unity-Dependencies-Hunter"
+  }
+}
