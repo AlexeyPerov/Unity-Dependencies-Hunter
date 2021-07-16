@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
@@ -75,6 +76,9 @@ namespace DependenciesHunter
 
             EditorUtility.ClearProgressBar();
 
+            var filteredOutput = new StringBuilder();
+            filteredOutput.AppendLine("Assets ignored by pattern:");
+            
             var count = 0;
             foreach (var mapElement in map)
             {
@@ -93,9 +97,7 @@ namespace DependenciesHunter
 
                         if (!validForOutput)
                         {
-                            Debug.Log($"Unreferenced Asset: {mapElement.Key} is ignored in output " +
-                                      $"due to specified ignore patterns");
-                            
+                            filteredOutput.AppendLine(mapElement.Key);
                         }
                     }
 
@@ -107,6 +109,9 @@ namespace DependenciesHunter
             }
 
             EditorUtility.ClearProgressBar();
+            
+            Debug.Log(filteredOutput.ToString());
+            filteredOutput.Clear();
         }
 
         private void Clear()
