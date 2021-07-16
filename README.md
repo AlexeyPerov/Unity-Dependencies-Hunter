@@ -45,3 +45,10 @@ It attempts to find all assets which reference the selected ones.
 
 ![plot](./Screenshots/context_menu.png)
 ![plot](./Screenshots/context_menu_result.png)
+
+
+### Installation
+
+ 1. Through Unity's Package Manager. Use this as git url: `https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git#upm`. UPM support added via [template](https://github.com/STARasGAMES/Unity-package-repo-setup-template).
+
+ 2. Copy and paste file [DependenciesHunter.cs](./Packages/DependenciesHunter/Editor/DependenciesHunter.cs) inside Editor folder 
