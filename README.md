@@ -1,4 +1,4 @@
-# Dependencies Hunter Unity3D Tool
+# Dependencies Hunter Unity3D Tool ![unity](https://img.shields.io/badge/Unity-100000?style=for-the-badge&logo=unity&logoColor=white)
 
 ![stability-stable](https://img.shields.io/badge/stability-stable-green.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -31,13 +31,13 @@ Such assets are considered as unused if they aren't marked as to be ignored in t
 
 The tool has two ways to use it. Each has a menu option and an editor window.
 
-## To list all unused assets in your project
-click on "Tools/Dependencies Hunter" option which will open the "AllProjectAssetsReferencesWindow" window.
+## To list all unused assets in your project..
+..click on "Tools/Dependencies Hunter" option which will open the "AllProjectAssetsReferencesWindow" window.
 
 ![plot](./Screenshots/project_analysis.png)
 
-## To list all references towards selected assets
-select the assets and use a context menu option "Find References in Project".
+## To list all references towards selected assets..
+..select the assets and use a context menu option "Find References in Project".
 It will open the "SelectedAssetsReferencesWindow" window with the results.
 
 ![plot](./Screenshots/context_menu.png) | ![plot](./Screenshots/context_menu_result.png)
