@@ -1,10 +1,15 @@
-﻿using System;
+﻿// #define HUNT_ADDRESSABLES
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
+#if HUNT_ADDRESSABLES
+using UnityEditor.AddressableAssets;
+#endif
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -16,41 +21,74 @@ namespace DependenciesHunter
     /// </summary>
     public class AllProjectAssetsReferencesWindow : EditorWindow
     {
+        private class Result
+        {
+            public List<AssetData> Assets { get; } = new List<AssetData>();
+            public Dictionary<string, int> RefsByTypes { get; } = new Dictionary<string, int>();
+            public string OutputDescription { get; set; }
+        }
+
+        private class AnalysisSettings
+        {
+            // ReSharper disable once StringLiteralTypo
+            public readonly List<string> DefaultIgnorePatterns = new List<string>
+            {
+                @"/Resources/",
+                @"/Editor/",
+                @"/Editor Default Resources/",
+                @"/ThirdParty/",
+                @"ProjectSettings/",
+                @"Packages/",
+                @"\.asmdef$",
+                @"link\.xml$",
+                @"\.csv$",
+                @"\.md$",
+                @"\.json$",
+                @"\.xml$",
+                @"\.txt$"
+            };
+            
+            // ReSharper disable once InconsistentNaming
+            public const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatterns";
+            
+            public List<string> IgnoredPatterns { get; set; }
+
+            public bool FindUnreferencedOnly { get; set; } = true;
+        }
+
+        private class OutputSettings
+        {
+            public const int PageSize = 50;
+
+            public int? PageToShow { get; set; }
+            
+            public string PathFilter { get; set; }
+            public string TypeFilter { get; set; }
+            // ReSharper disable once IdentifierTypo
+            // ReSharper disable once UnusedAutoPropertyAccessor.Local
+            public bool ShowAddressables { get; set; }
+            public bool ShowUnreferencedOnly { get; set; }
+        
+            /// <summary>
+            /// Sorting types.
+            /// By type: 0: A-Z, 1: Z-A
+            /// By path: 2: A-Z, 3: Z-A
+            /// By size: 4: A-Z, 5: Z-A
+            ///  
+            /// </summary>
+            public int SortType { get; set; }
+        }
+
         private ProjectAssetsAnalysisUtilities _service;
-
-        private List<UnusedAssetData> _unusedAssets;
-
-        // ReSharper disable once InconsistentNaming
-        private const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatterns";
-
-        private int? _pageToShow;
-        private const int PageSize = 50;
-
-        private int _sortType;
+        
+        private Result _result;
+        private OutputSettings _outputSettings;
+        private AnalysisSettings _analysisSettings;
         
         private Vector2 _pagesScroll = Vector2.zero;
+        private Vector2 _typesScroll = Vector2.zero;
         private Vector2 _assetsScroll = Vector2.zero;
-        
-        // ReSharper disable once StringLiteralTypo
-        private readonly List<string> _defaultIgnorePatterns = new List<string>
-        {
-            @"/Resources/",
-            @"/Editor/",
-            @"/Editor Default Resources/",
-            @"/ThirdParty/",
-            @"ProjectSettings/",
-            @"Packages/",
-            @"\.asmdef$",
-            @"link\.xml$",
-            @"\.csv$",
-            @"\.md$",
-            @"\.json$",
-            @"\.xml$",
-            @"\.txt$"
-        };
-
-        private List<string> _ignoreInOutputPatterns;
-        private bool _ignorePatternsFoldout;
+        private bool _analysisSettingsFoldout;
 
         [MenuItem("Tools/Dependencies Hunter")]
         public static void LaunchUnreferencedAssetsWindow()
@@ -60,19 +98,23 @@ namespace DependenciesHunter
 
         private void PopulateUnusedAssetsList()
         {
-            _pageToShow = null;
-            
+            _result = new Result();
+            _outputSettings = new OutputSettings();
+
+            // ReSharper disable once ConvertIfStatementToNullCoalescingAssignment
             if (_service == null)
             {
                 _service = new ProjectAssetsAnalysisUtilities();
             }
-
-            if (_unusedAssets == null)
-            {
-                _unusedAssets = new List<UnusedAssetData>();
-            }
             
             Clear();
+
+            if (!_analysisSettings.FindUnreferencedOnly)
+            {
+                _outputSettings.ShowUnreferencedOnly = false;
+                _outputSettings.PageToShow = 0;
+            }
+            
             Show();
 
             DependenciesMapUtilities.FillReverseDependenciesMap(out var map);
@@ -89,37 +131,81 @@ namespace DependenciesHunter
                     (float) count / map.Count);
                 count++;
 
-                if (mapElement.Value.Count == 0)
-                {
-                    var validForOutput = ProjectAssetsAnalysisUtilities.IsValidForOutput(mapElement.Key, _ignoreInOutputPatterns);
-                    var validAssetType = _service.IsValidAssetType(mapElement.Key, validForOutput);
+                var referencesCount = mapElement.Value.Count;
+                
+                if (_analysisSettings.FindUnreferencedOnly && referencesCount != 0) 
+                    continue;
+                
+                var validForOutput = ProjectAssetsAnalysisUtilities.IsValidForOutput(mapElement.Key, 
+                    _analysisSettings.IgnoredPatterns);
+                var validAssetType = _service.IsValidAssetType(mapElement.Key, validForOutput);
 
-                    if (!validAssetType) 
-                        continue;
+                if (!validAssetType) 
+                    continue;
                     
-                    if (validForOutput)
-                    {
-                        _unusedAssets.Add(UnusedAssetData.Create(mapElement.Key));
-                    }
-                    else
-                    {
-                        filteredOutput.AppendLine(mapElement.Key);
-                    }
-
+                if (validForOutput)
+                {
+                    _result.Assets.Add(AssetData.Create(mapElement.Key, referencesCount));
+                }
+                else
+                {
+                    filteredOutput.AppendLine(mapElement.Key);
                 }
             }
+            
+            var types = _result.Assets.Select(x => x.TypeName);
+
+            foreach (var type in types)
+            {
+                _result.RefsByTypes[type] = _result.Assets.Count(x => x.TypeName == type);
+            }
+            
+#if HUNT_ADDRESSABLES
+            if (_analysisSettings.FindUnreferencedOnly)
+            {
+                var addressablesCount = _result.Assets.Count(x => x.IsAddressable);
+
+                var nonAddressablesCount = _result.Assets.Count - addressablesCount;
+                _result.OutputDescription = $"Result. Unreferenced Assets: Total = {_result.Assets.Count} " +
+                                            $"Addressables = {addressablesCount} Common = {nonAddressablesCount}";
+            }
+            else
+            {
+                var unreferencedTotalCount = _result.Assets.Count(x => x.ReferencesCount == 0);
+                
+                var unreferencedAddressablesCount = _result.Assets.Count(x => 
+                    x.IsAddressable && x.ReferencesCount == 0);
+
+                var unreferencedCommonCount = unreferencedTotalCount - unreferencedAddressablesCount;
+                
+                _result.OutputDescription = $"Result. Assets: Total = {_result.Assets.Count} " +
+                                            $"Unreferenced = {unreferencedTotalCount} " +
+                                            $"Unreferenced Addressables = {unreferencedAddressablesCount} " +
+                                            $"Unreferenced Common = {unreferencedCommonCount}";
+            }
+#else
+            if (_analysisSettings.FindUnreferencedOnly)
+            {
+                _result.OutputDescription = $"Result. Unreferenced Assets: {_result.Assets.Count}";
+            }
+            else
+            {
+                var unreferencedTotalCount = _result.Assets.Count(x => x.ReferencesCount == 0);
+                _result.OutputDescription = $"Result. Assets: Total = {_result.Assets.Count} Unreferenced = {unreferencedTotalCount}";
+            }
+#endif
 
             SortByPath();
 
             EditorUtility.ClearProgressBar();
             
             Debug.Log(filteredOutput.ToString());
+            Debug.Log(_result.OutputDescription);
             filteredOutput.Clear();
         }
 
-        private void Clear()
+        private static void Clear()
         {
-            _unusedAssets?.Clear();
             EditorUtility.UnloadUnusedAssetsImmediate();
         }
 
@@ -147,51 +233,103 @@ namespace DependenciesHunter
             
             GUIUtilities.HorizontalLine();
             
-            OnPatternsGUI();
+            OnAnalysisSettingsGUI();
             
             GUIUtilities.HorizontalLine();
 
-            if (_unusedAssets == null)
+            if (_result == null)
             {
                 return;
             }
             
-            if (_unusedAssets.Count == 0)
+            if (_result.Assets.Count == 0)
             {
                 EditorGUILayout.LabelField("No unreferenced found");
                 return;
             }
+            
+            var filteredAssets = _result.Assets;
+            
+            if (!string.IsNullOrEmpty(_outputSettings.PathFilter))
+            {
+                filteredAssets = filteredAssets.Where(x => x.Path.Contains(_outputSettings.PathFilter)).ToList();
+            }
 
-            EditorGUILayout.LabelField($"Unreferenced Assets: {_unusedAssets.Count}");
-                
+            if (!_outputSettings.ShowAddressables)
+            {
+                filteredAssets = filteredAssets.Where(x => !x.IsAddressable).ToList();
+            }
+
+            if (!string.IsNullOrEmpty(_outputSettings.TypeFilter))
+            {
+                filteredAssets = filteredAssets.Where(x => x.TypeName == _outputSettings.TypeFilter).ToList();
+            }
+
+            if (!_analysisSettings.FindUnreferencedOnly && _outputSettings.ShowUnreferencedOnly)
+            {
+                filteredAssets = filteredAssets.Where(x => x.ReferencesCount == 0).ToList();
+            }
+            
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField(_result.OutputDescription);
+
+            if (filteredAssets.Count < 1000)
+            {
+                if (GUILayout.Button("Save to Clipboard", GUILayout.Width(250f)))
+                {
+                    var toClipboard = new StringBuilder();
+
+                    toClipboard.AppendLine($"Unreferenced Assets [{filteredAssets.Count}]:");
+
+                    foreach (var asset in filteredAssets)
+                    {
+                        toClipboard.AppendLine("[" + asset.TypeName + "][" + asset.ReadableSize + "] " + asset.Path);
+                    }
+
+                    EditorGUIUtility.systemCopyBuffer = toClipboard.ToString();
+                }
+            }
+
+            EditorGUILayout.EndHorizontal();
+
             _pagesScroll = EditorGUILayout.BeginScrollView(_pagesScroll);
 
             EditorGUILayout.BeginHorizontal();
             
             prevColor = GUI.color;
-            GUI.color = !_pageToShow.HasValue ? Color.yellow : Color.white;
+            GUI.color = !_outputSettings.PageToShow.HasValue ? Color.yellow : Color.white;
 
             if (GUILayout.Button("All", GUILayout.Width(30f)))
             {
-                _pageToShow = null;
+                _outputSettings.PageToShow = null;
             }
 
             GUI.color = prevColor;
-
-            var totalCount = _unusedAssets.Count;
-            var pagesCount = totalCount / PageSize + (totalCount % PageSize > 0 ? 1 : 0);
+            
+            var totalCount = filteredAssets.Count;
+            var pagesCount = totalCount / OutputSettings.PageSize + (totalCount % OutputSettings.PageSize > 0 ? 1 : 0);
 
             for (var i = 0; i < pagesCount; i++)
             {
                 prevColor = GUI.color;
-                GUI.color = _pageToShow == i ? Color.yellow : Color.white;
+                GUI.color = _outputSettings.PageToShow == i ? Color.yellow : Color.white;
 
                 if (GUILayout.Button((i + 1).ToString(), GUILayout.Width(30f)))
                 {
-                    _pageToShow = i;
+                    _outputSettings.PageToShow = i;
                 }
 
                 GUI.color = prevColor;
+            }
+
+            if (_outputSettings.PageToShow.HasValue && _outputSettings.PageToShow > pagesCount - 1)
+            {
+                _outputSettings.PageToShow = pagesCount - 1;
+            }
+
+            if (_outputSettings.PageToShow.HasValue && pagesCount == 0)
+            {
+                _outputSettings.PageToShow = null;
             }
 
             EditorGUILayout.EndHorizontal();
@@ -200,23 +338,48 @@ namespace DependenciesHunter
             GUIUtilities.HorizontalLine();
         
             EditorGUILayout.BeginHorizontal();
+
+            var textFieldStyle = EditorStyles.textField;
+            var prevTextFieldAlignment = textFieldStyle.alignment;
+            textFieldStyle.alignment = TextAnchor.MiddleCenter;
+            
+            _outputSettings.PathFilter = EditorGUILayout.TextField("Path Contains:", 
+                _outputSettings.PathFilter, GUILayout.Width(400f));
+
+#if HUNT_ADDRESSABLES
+            _outputSettings.ShowAddressables = EditorGUILayout.Toggle("Show Addressables:", 
+                _outputSettings.ShowAddressables);
+#endif
+
+            if (!_analysisSettings.FindUnreferencedOnly)
+            {
+                _outputSettings.ShowUnreferencedOnly = EditorGUILayout.Toggle("Show Unreferenced Only:", 
+                    _outputSettings.ShowUnreferencedOnly);
+            }
+
+            textFieldStyle.alignment = prevTextFieldAlignment;
             
             prevColor = GUI.color;
 
-            GUI.color = _sortType == 0 || _sortType == 1 ? Color.yellow : Color.white;
-            if (GUILayout.Button("Sort by type", GUILayout.Width(100f)))
+            var sortType = _outputSettings.SortType;
+            
+            GUI.color = sortType == 0 || sortType == 1 ? Color.yellow : Color.white;
+            var orderType = sortType == 1 ? "Z-A" : "A-Z";
+            if (GUILayout.Button("Sort by type " + orderType, GUILayout.Width(150f)))
             {
                 SortByType();
             }
         
-            GUI.color = _sortType == 2 || _sortType == 3 ? Color.yellow : Color.white;
-            if (GUILayout.Button("Sort by path", GUILayout.Width(100f)))
+            GUI.color = sortType == 2 || sortType == 3 ? Color.yellow : Color.white;
+            orderType = sortType == 3 ? "Z-A" : "A-Z";
+            if (GUILayout.Button("Sort by path " + orderType, GUILayout.Width(150f)))
             {
                 SortByPath();
             }
             
-            GUI.color = _sortType == 4 || _sortType == 5 ? Color.yellow : Color.white;
-            if (GUILayout.Button("Sort by size", GUILayout.Width(100f)))
+            GUI.color = sortType == 4 || sortType == 5 ? Color.yellow : Color.white;
+            orderType = sortType == 5 ? "Z-A" : "A-Z";
+            if (GUILayout.Button("Sort by size " + orderType, GUILayout.Width(150f)))
             {
                 SortBySize();
             }
@@ -226,51 +389,111 @@ namespace DependenciesHunter
             EditorGUILayout.EndHorizontal();
 
             GUIUtilities.HorizontalLine();
+
+            _typesScroll = EditorGUILayout.BeginScrollView(_typesScroll);
+            
+            EditorGUILayout.BeginHorizontal();
+
+            prevColor = GUI.color;
+            GUI.color = string.IsNullOrEmpty(_outputSettings.TypeFilter) ? Color.yellow : Color.white;
+            
+            if (GUILayout.Button("All Types", GUILayout.Width(100f)))
+            {
+                _outputSettings.TypeFilter = string.Empty;
+            }
+            
+            var prevAlignment = GUI.skin.button.alignment;
+            GUI.skin.button.alignment = TextAnchor.MiddleLeft;
+
+            foreach (var typeInfo in _result.RefsByTypes)
+            {
+                GUI.color = _outputSettings.TypeFilter == typeInfo.Key ? Color.yellow : Color.white;
+
+                var typeName = typeInfo.Key;
+                var dotIndex = typeName.LastIndexOf(".", StringComparison.Ordinal);
+
+                if (dotIndex != -1 && dotIndex + 1 < typeName.Length - 3)
+                {
+                    typeName = typeName.Substring(dotIndex + 1);
+                }
+                
+                if (GUILayout.Button($"[{typeInfo.Value}] {typeName}", GUILayout.Width(150f)))
+                {
+                    _outputSettings.TypeFilter = typeInfo.Key;
+                }
+            }
+
+            GUI.skin.button.alignment = prevAlignment;
+            GUI.color = prevColor;
+
+            EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.EndScrollView();
+
+            GUIUtilities.HorizontalLine();
             
             _assetsScroll = GUILayout.BeginScrollView(_assetsScroll);
 
             EditorGUILayout.BeginVertical();
 
-            for (var i = 0; i < _unusedAssets.Count; i++)
+            for (var i = 0; i < filteredAssets.Count; i++)
             {
-                if (_pageToShow.HasValue)
+                if (_outputSettings.PageToShow.HasValue)
                 {
-                    var page = _pageToShow.Value;
-                    if (i < page * PageSize || i >= (page + 1) * PageSize)
+                    var page = _outputSettings.PageToShow.Value;
+                    if (i < page * OutputSettings.PageSize || i >= (page + 1) * OutputSettings.PageSize)
                     {
                         continue;
                     }
                 }
                 
-                var unusedAsset = _unusedAssets[i];
+                var asset = filteredAssets[i];
                 EditorGUILayout.BeginHorizontal();
                 
                 EditorGUILayout.LabelField(i.ToString(), GUILayout.Width(40f));
                 
                 prevColor = GUI.color;
-                GUI.color = unusedAsset.ValidType ? Color.white : Color.red;
-                EditorGUILayout.LabelField(unusedAsset.TypeName, GUILayout.Width(150f));    
+                GUI.color = asset.ValidType ? Color.white : Color.red;
+                EditorGUILayout.LabelField(asset.TypeName, GUILayout.Width(150f));    
                 GUI.color = prevColor;
 
-                if (unusedAsset.ValidType)
+                if (asset.ValidType)
                 {
-                    var guiContent = EditorGUIUtility.ObjectContent(null, unusedAsset.Type);
-                    guiContent.text = Path.GetFileName(unusedAsset.Path);
+                    var guiContent = EditorGUIUtility.ObjectContent(null, asset.Type);
+                    guiContent.text = Path.GetFileName(asset.Path);
 
                     var alignment = GUI.skin.button.alignment;
                     GUI.skin.button.alignment = TextAnchor.MiddleLeft;
 
                     if (GUILayout.Button(guiContent, GUILayout.Width(300f), GUILayout.Height(18f)))
                     {
-                        Selection.objects = new[] { AssetDatabase.LoadMainAssetAtPath(unusedAsset.Path) };
+                        Selection.objects = new[] { AssetDatabase.LoadMainAssetAtPath(asset.Path) };
                     }
 
                     GUI.skin.button.alignment = alignment;
                 }
 
-                EditorGUILayout.LabelField(unusedAsset.ReadableSize, GUILayout.Width(70f));    
+                EditorGUILayout.LabelField(asset.ReadableSize, GUILayout.Width(70f));
                 
-                EditorGUILayout.LabelField(unusedAsset.Path);
+#if HUNT_ADDRESSABLES
+                if (_outputSettings.ShowAddressables)
+                {
+                    EditorGUILayout.LabelField(asset.IsAddressable ? "Addressable" : string.Empty,
+                        GUILayout.Width(70f));
+                }
+#endif
+                
+                prevColor = GUI.color;
+                
+                if (!_analysisSettings.FindUnreferencedOnly)
+                    GUI.color = asset.ReferencesCount > 0 ? Color.white : Color.red;
+                
+                EditorGUILayout.LabelField("Refs:" + asset.ReferencesCount,
+                    GUILayout.Width(70f));
+                
+                GUI.color = prevColor;
+
+                EditorGUILayout.LabelField(asset.Path);
 
                 EditorGUILayout.EndHorizontal();
             }
@@ -281,28 +504,47 @@ namespace DependenciesHunter
             GUILayout.EndScrollView();
         }
 
-        private void OnPatternsGUI()
+        private void OnAnalysisSettingsGUI()
         {
             EnsurePatternsLoaded();
             
-            _ignorePatternsFoldout = EditorGUILayout.Foldout(_ignorePatternsFoldout,
-                $"Patterns Ignored in Output: {_ignoreInOutputPatterns.Count}");
+            _analysisSettingsFoldout = EditorGUILayout.Foldout(_analysisSettingsFoldout,
+                $"Analysis Settings. Patterns Ignored in Output: {_analysisSettings.IgnoredPatterns.Count}. " 
+                + (_analysisSettings.FindUnreferencedOnly ? "Listing unreferenced assets only" : "Listing all assets"));
 
-            if (!_ignorePatternsFoldout) return;
+            if (!_analysisSettingsFoldout) 
+                return;
 
-            var isDirty = false;
+            EditorGUILayout.LabelField("Any changes here will be applied to the next run", GUILayout.Width(350f));
+
+            GUIUtilities.HorizontalLine();
+            
+            EditorGUILayout.BeginHorizontal();
+
+            EditorGUILayout.LabelField("Show Unreferenced Assets Only");
+            _analysisSettings.FindUnreferencedOnly = EditorGUILayout.Toggle(string.Empty, 
+                _analysisSettings.FindUnreferencedOnly);
+            GUILayout.FlexibleSpace();
+            
+            EditorGUILayout.EndHorizontal();
+            
+            EditorGUILayout.LabelField("* Uncheck to list all assets with their references count", GUILayout.Width(350f));
+            
+            GUIUtilities.HorizontalLine();
+            
+            var isPatternsListDirty = false;
 
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Format: RegExp patterns");
             if (GUILayout.Button("Set Default", GUILayout.Width(300f)))
             {
-                _ignoreInOutputPatterns = _defaultIgnorePatterns.ToList();
-                isDirty = true;
+                _analysisSettings.IgnoredPatterns = _analysisSettings.DefaultIgnorePatterns.ToList();
+                isPatternsListDirty = true;
             }
 
             if (GUILayout.Button("Save to Clipboard"))
             {
-                var contents = _ignoreInOutputPatterns.Aggregate("Patterns:", 
+                var contents = _analysisSettings.IgnoredPatterns.Aggregate("Patterns:", 
                     (current, t) => current + "\n" + t);
 
                 EditorGUIUtility.systemCopyBuffer = contents;
@@ -310,37 +552,37 @@ namespace DependenciesHunter
             
             EditorGUILayout.EndHorizontal();
 
-            var newCount = Mathf.Max(0, EditorGUILayout.IntField("Count:", _ignoreInOutputPatterns.Count));
+            var newCount = Mathf.Max(0, EditorGUILayout.IntField("Count:", _analysisSettings.IgnoredPatterns.Count));
 
-            if (newCount != _ignoreInOutputPatterns.Count)
+            if (newCount != _analysisSettings.IgnoredPatterns.Count)
             {
-                isDirty = true;
+                isPatternsListDirty = true;
             }
 
-            while (newCount < _ignoreInOutputPatterns.Count)
+            while (newCount < _analysisSettings.IgnoredPatterns.Count)
             {
-                _ignoreInOutputPatterns.RemoveAt(_ignoreInOutputPatterns.Count - 1);
+                _analysisSettings.IgnoredPatterns.RemoveAt(_analysisSettings.IgnoredPatterns.Count - 1);
             }
 
-            if (newCount > _ignoreInOutputPatterns.Count)
+            if (newCount > _analysisSettings.IgnoredPatterns.Count)
             {
-                for (var i = _ignoreInOutputPatterns.Count; i < newCount; i++)
+                for (var i = _analysisSettings.IgnoredPatterns.Count; i < newCount; i++)
                 {
-                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
+                    _analysisSettings.IgnoredPatterns.Add(EditorPrefs.GetString($"{AnalysisSettings.PATTERNS_PREFS_KEY}_{i}"));
                 }
             }
 
-            for (var i = 0; i < _ignoreInOutputPatterns.Count; i++)
+            for (var i = 0; i < _analysisSettings.IgnoredPatterns.Count; i++)
             {
-                var newValue = EditorGUILayout.TextField(_ignoreInOutputPatterns[i]);
-                if (_ignoreInOutputPatterns[i] != newValue)
+                var newValue = EditorGUILayout.TextField(_analysisSettings.IgnoredPatterns[i]);
+                if (_analysisSettings.IgnoredPatterns[i] != newValue)
                 {
-                    isDirty = true;
-                    _ignoreInOutputPatterns[i] = newValue;
+                    isPatternsListDirty = true;
+                    _analysisSettings.IgnoredPatterns[i] = newValue;
                 }
             }
 
-            if (isDirty)
+            if (isPatternsListDirty)
             {
                 SavePatterns();
             }
@@ -348,81 +590,87 @@ namespace DependenciesHunter
 
         private void EnsurePatternsLoaded()
         {
-            if (_ignoreInOutputPatterns != null)
+            // ReSharper disable once ConvertIfStatementToNullCoalescingAssignment
+            if (_analysisSettings == null)
+            {
+                _analysisSettings = new AnalysisSettings();
+            }
+            
+            if (_analysisSettings.IgnoredPatterns != null)
             {
                 return;
             }
             
-            var count = EditorPrefs.GetInt(PATTERNS_PREFS_KEY, -1);
+            var count = EditorPrefs.GetInt(AnalysisSettings.PATTERNS_PREFS_KEY, -1);
 
             if (count == -1)
             {
-                _ignoreInOutputPatterns = _defaultIgnorePatterns.ToList();
+                _analysisSettings.IgnoredPatterns = _analysisSettings.DefaultIgnorePatterns.ToList();
             }
             else
             {
-                _ignoreInOutputPatterns = new List<string>();
+                _analysisSettings.IgnoredPatterns = new List<string>();
                 
                 for (var i = 0; i < count; i++)
                 {
-                    _ignoreInOutputPatterns.Add(EditorPrefs.GetString($"{PATTERNS_PREFS_KEY}_{i}"));
+                    _analysisSettings.IgnoredPatterns.Add(EditorPrefs.GetString($"{AnalysisSettings.PATTERNS_PREFS_KEY}_{i}"));
                 }    
             }
         }
 
         private void SavePatterns()
         {
-            EditorPrefs.SetInt(PATTERNS_PREFS_KEY, _ignoreInOutputPatterns.Count);
+            EditorPrefs.SetInt(AnalysisSettings.PATTERNS_PREFS_KEY, _analysisSettings.IgnoredPatterns.Count);
 
-            for (var i = 0; i < _ignoreInOutputPatterns.Count; i++)
+            for (var i = 0; i < _analysisSettings.IgnoredPatterns.Count; i++)
             {
-                EditorPrefs.SetString($"{PATTERNS_PREFS_KEY}_{i}", _ignoreInOutputPatterns[i]);
+                EditorPrefs.SetString($"{AnalysisSettings.PATTERNS_PREFS_KEY}_{i}", _analysisSettings.IgnoredPatterns[i]);
             }
         }
         
         private void SortByType()
         {
-            if (_sortType == 0)
+            if (_outputSettings.SortType == 0)
             {
-                _sortType = 1;
-                _unusedAssets?.Sort((a, b) =>
+                _outputSettings.SortType = 1;
+                _result.Assets?.Sort((a, b) =>
                     string.Compare(b.TypeName, a.TypeName, StringComparison.Ordinal));
             }
             else
             {
-                _sortType = 0;
-                _unusedAssets?.Sort((a, b) =>
+                _outputSettings.SortType = 0;
+                _result.Assets?.Sort((a, b) =>
                     string.Compare(a.TypeName, b.TypeName, StringComparison.Ordinal));
             }
         }
         
         private void SortByPath()
         {
-            if (_sortType == 2)
+            if (_outputSettings.SortType == 2)
             {
-                _sortType = 3;
-                _unusedAssets?.Sort((a, b) =>
+                _outputSettings.SortType = 3;
+                _result.Assets?.Sort((a, b) =>
                     string.Compare(b.Path, a.Path, StringComparison.Ordinal));
             }
             else
             {
-                _sortType = 2;
-                _unusedAssets?.Sort((a, b) =>
+                _outputSettings.SortType = 2;
+                _result.Assets?.Sort((a, b) =>
                     string.Compare(a.Path, b.Path, StringComparison.Ordinal));
             }
         }
 
         private void SortBySize()
         {
-            if (_sortType == 4)
+            if (_outputSettings.SortType == 4)
             {
-                _sortType = 5;
-                _unusedAssets?.Sort((b, a) => a.BytesSize.CompareTo(b.BytesSize));
+                _outputSettings.SortType = 5;
+                _result.Assets?.Sort((b, a) => a.BytesSize.CompareTo(b.BytesSize));
             }
             else
             {
-                _sortType = 4;
-                _unusedAssets?.Sort((a, b) => a.BytesSize.CompareTo(b.BytesSize));
+                _outputSettings.SortType = 4;
+                _result.Assets?.Sort((a, b) => a.BytesSize.CompareTo(b.BytesSize));
             }
         }
 
@@ -440,7 +688,6 @@ namespace DependenciesHunter
         private SelectedAssetsAnalysisUtilities _service;
 
         private const float TabLength = 60f;
-        private const TextAnchor ResultButtonAlignment = TextAnchor.MiddleLeft;
 
         private Dictionary<Object, List<string>> _lastResults;
 
@@ -462,6 +709,7 @@ namespace DependenciesHunter
 
         private void Start()
         {
+            // ReSharper disable once ConvertIfStatementToNullCoalescingAssignment
             if (_service == null)
             {
                 _service = new SelectedAssetsAnalysisUtilities();
@@ -549,7 +797,7 @@ namespace DependenciesHunter
                         guiContent.text = Path.GetFileName(resultPath);
 
                         var alignment = GUI.skin.button.alignment;
-                        GUI.skin.button.alignment = ResultButtonAlignment;
+                        GUI.skin.button.alignment = TextAnchor.MiddleLeft;
 
                         if (GUILayout.Button(guiContent, GUILayout.MinWidth(300f), GUILayout.Height(18f)))
                         {
@@ -722,9 +970,9 @@ namespace DependenciesHunter
         }
     }
 
-    public class UnusedAssetData
+    public class AssetData
     {
-        public static UnusedAssetData Create(string path)
+        public static AssetData Create(string path, int referencesCount)
         {
             var type = AssetDatabase.GetMainAssetTypeAtPath(path);
             string typeName;
@@ -740,18 +988,23 @@ namespace DependenciesHunter
                 typeName = "Unknown Type";
             }
 
+            var isAddressable = CommonUtilities.IsAssetAddressable(path);
+
             var fileInfo = new FileInfo(path);
             var bytesSize = fileInfo.Length;
-            return new UnusedAssetData(path, type, typeName, bytesSize, CommonUtilities.GetReadableSize(bytesSize));
+            return new AssetData(path, type, typeName, bytesSize, 
+                CommonUtilities.GetReadableSize(bytesSize), isAddressable, referencesCount);
         }
         
-        private UnusedAssetData(string path, Type type, string typeName, long bytesSize, string readableSize)
+        private AssetData(string path, Type type, string typeName, long bytesSize, string readableSize, bool addressable, int referencesCount)
         {
             Path = path;
             Type = type;
             TypeName = typeName;
             BytesSize = bytesSize;
             ReadableSize = readableSize;
+            IsAddressable = addressable;
+            ReferencesCount = referencesCount;
         }
 
         public string Path { get; }
@@ -759,6 +1012,8 @@ namespace DependenciesHunter
         public string TypeName { get; }
         public long BytesSize { get; }
         public string ReadableSize { get; }
+        public bool IsAddressable { get; }
+        public int ReferencesCount { get; }
         public bool ValidType => Type != null;
     }
 
@@ -806,6 +1061,17 @@ namespace DependenciesHunter
             }
 
             return $"{len:0.##} {sizes[order]}";
+        }
+        
+        public static bool IsAssetAddressable(string assetPath)
+        {
+#if HUNT_ADDRESSABLES
+            var settings = AddressableAssetSettingsDefaultObject.Settings;
+            var entry = settings.FindAssetEntry(AssetDatabase.AssetPathToGUID(assetPath));
+            return entry != null;
+#else
+            return false;
+#endif
         }
     }
 }
