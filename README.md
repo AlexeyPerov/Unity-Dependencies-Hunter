@@ -5,7 +5,7 @@
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity)
 
 ##
-This tool finds unreferenced assets by scanning all files in your Unity project.
+This tool finds unreferenced assets in Unity project.
 
 All code combined into one script for easier portability.
 So you can just copy-paste [DependenciesHunter.cs](./Packages/DependenciesHunter/Editor/DependenciesHunter.cs) to your project in any Editor folder.
@@ -25,22 +25,42 @@ AssetDatabase.GetDependencies
 to find dependencies for each of those assets. As a result dependencies map is formed.
 
 Then it simply finds all assets which are not presented as a dependency within this map.
-Such assets are considered as unused if they aren't marked as to be ignored in this analysis (by a list of RegExp patterns).
+Such assets considered as unused if they aren't marked as to be ignored in this analysis (by a list of RegExp patterns).
+
+### Addressables
+
+To enable addressables usage uncomment the first line.
+
+```code
+// #define HUNT_ADDRESSABLES
+```
 
 # Ways of usage
 
-The tool has two ways to use it. Each has a menu option and an editor window.
+The tool has two ways to use it. Each has a menu option, and an editor window.
 
 ## To list all unused assets in your project..
 ..click on "Tools/Dependencies Hunter" option which will open the "AllProjectAssetsReferencesWindow" window.
 
-![plot](./Screenshots/project_analysis.png)
+![plot](./Screenshots/project_analysis_unused.png)
 
 ## To list all references towards selected assets..
 ..select the assets and use a context menu option "Find References in Project".
 It will open the "SelectedAssetsReferencesWindow" window with the results.
 
-![plot](./Screenshots/context_menu.png) | ![plot](./Screenshots/context_menu_result.png)
+| Context Menu  | Result Window |
+| ------------- | ------------- |
+| ![plot](./Screenshots/context_menu.png) | ![plot](./Screenshots/context_menu_result.png) |
+
+## Settings
+
+In the Analysis Settings foldout you can set files to be ignored by providing a list of RegExp patterns.
+You can also uncheck the 'Show Unreferenced Assets Only' toggle 
+to view the list of all your project assets with their references number, files sizes etc.
+
+| Analysis Settings  | Listing all Assets |
+| ------------- | ------------- |
+| ![plot](./Screenshots/ignore_patterns.png) | ![plot](./Screenshots/project_analysis_all.png) |
 
 ## Installation
 
