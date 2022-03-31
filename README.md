@@ -76,9 +76,9 @@ or to [contribute](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/pull
 
 ##### Missing References Hunter
 
-To find missing or empty references in your assets see [Missing-References-Hunter](https://github.com/AlexeyPerov/Unity-MissingReferences-Hunter) tool.
+To find missing or empty references in your assets see [Missing-References-Hunter](https://github.com/AlexeyPerov/Unity-MissingReferences-Hunter).
 
 ##### Textures Hunter
 
-To analyze your textures and atlases see [Textures-Hunter](https://github.com/AlexeyPerov/Unity-Textures-Hunter) tool.
+To analyze your textures and atlases see [Textures-Hunter](https://github.com/AlexeyPerov/Unity-Textures-Hunter).
 
