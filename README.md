@@ -72,6 +72,13 @@ to view the list of all your project assets with their references number, files 
 Feel free to [report bugs, request new features](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/issues) 
 or to [contribute](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/pulls) to this project! 
 
-## See also
+## Other tools
 
-To find missing and/or empty references in your assets see [Missing-References-Hunter](https://github.com/AlexeyPerov/Unity-MissingReferences-Hunter) tool.
+##### Missing References Hunter
+
+To find missing or empty references in your assets see [Missing-References-Hunter](https://github.com/AlexeyPerov/Unity-MissingReferences-Hunter) tool.
+
+##### Textures Hunter
+
+To analyze your textures and atlases see [Textures-Hunter](https://github.com/AlexeyPerov/Unity-Textures-Hunter) tool.
+
