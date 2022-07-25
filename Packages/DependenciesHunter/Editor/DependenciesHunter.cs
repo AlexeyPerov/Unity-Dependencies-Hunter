@@ -4,9 +4,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
+#if UNITY_2021_2_OR_NEWER
+using UnityEditor.Build;
+#endif
 #if HUNT_ADDRESSABLES
 using UnityEditor.AddressableAssets;
 #endif
@@ -881,12 +885,24 @@ namespace DependenciesHunter
             _iconPaths = new List<string>();
 
             var icons = new List<Texture2D>();
-            var targetGroups = Enum.GetValues(typeof(BuildTargetGroup));
 
-            foreach (var targetGroup in targetGroups)
+            #if UNITY_2021_2_OR_NEWER
+            foreach (var buildTargetField in typeof(NamedBuildTarget).GetFields(BindingFlags.Public | BindingFlags.Static))
+            {
+                if (buildTargetField.Name == "Unknown")
+                    continue;
+                if (buildTargetField.FieldType != typeof(NamedBuildTarget))
+                    continue;
+
+                NamedBuildTarget buildTarget = (NamedBuildTarget) buildTargetField.GetValue(null);
+                icons.AddRange(PlayerSettings.GetIcons(buildTarget, IconKind.Any));
+            }
+            #else
+            foreach (var targetGroup in Enum.GetValues(typeof(BuildTargetGroup)))
             {
                 icons.AddRange(PlayerSettings.GetIconsForTargetGroup((BuildTargetGroup) targetGroup));
             }
+            #endif
 
             foreach (var icon in icons)
             {
