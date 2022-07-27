@@ -814,6 +814,7 @@ namespace DependenciesHunter
             }
 
             GUILayout.EndScrollView();
+            GUILayout.EndVertical();
         }
 
         private void OnProjectChange()
