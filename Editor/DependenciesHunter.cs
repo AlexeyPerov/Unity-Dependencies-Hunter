@@ -704,7 +704,7 @@ namespace DependenciesHunter
         private Vector2 _scrollPos = Vector2.zero;
         private Vector2[] _foldoutsScrolls;
 
-        [MenuItem("Assets/Find References in Project", false, 20)]
+        [MenuItem("Assets/Find References In Project", false, 20)]
         public static void FindReferences()
         {
             var window = GetWindow<SelectedAssetsReferencesWindow>();
