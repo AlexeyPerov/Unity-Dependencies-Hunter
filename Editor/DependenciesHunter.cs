@@ -15,6 +15,7 @@ using UnityEditor.Build;
 using UnityEditor.AddressableAssets;
 #endif
 using UnityEngine;
+using UnityEngine.U2D;
 using Object = UnityEngine.Object;
 
 // ReSharper disable once CheckNamespace
@@ -72,6 +73,7 @@ namespace DependenciesHunter
             // ReSharper disable once UnusedAutoPropertyAccessor.Local
             public bool ShowAddressables { get; set; }
             public bool ShowUnreferencedOnly { get; set; }
+            public bool ShowAssetsWithWarningsOnly { get; set; }
         
             /// <summary>
             /// Sorting types.
@@ -116,8 +118,9 @@ namespace DependenciesHunter
             if (!_analysisSettings.FindUnreferencedOnly)
             {
                 _outputSettings.ShowUnreferencedOnly = false;
-                _outputSettings.PageToShow = 0;
             }
+            
+            _outputSettings.PageToShow = 0;
             
             Show();
 
@@ -135,8 +138,24 @@ namespace DependenciesHunter
                     (float) count / map.Count);
                 count++;
 
+                var warning = string.Empty;
                 var referencesCount = mapElement.Value.Count;
-                
+
+                if (referencesCount == 1)
+                {
+                    var type = AssetDatabase.GetMainAssetTypeAtPath(mapElement.Key);
+                    if (type == typeof(Texture2D))
+                    {
+                        var reference = mapElement.Value[0];
+                        var referenceType = AssetDatabase.GetMainAssetTypeAtPath(reference);
+                        if (referenceType == typeof(SpriteAtlas))
+                        {
+                            warning = $"Sprite references only its atlas {reference}";
+                            referencesCount = 0;
+                        }
+                    }
+                }
+
                 if (_analysisSettings.FindUnreferencedOnly && referencesCount != 0) 
                     continue;
                 
@@ -149,7 +168,7 @@ namespace DependenciesHunter
                     
                 if (validForOutput)
                 {
-                    _result.Assets.Add(AssetData.Create(mapElement.Key, referencesCount));
+                    _result.Assets.Add(AssetData.Create(mapElement.Key, referencesCount, warning));
                 }
                 else
                 {
@@ -268,6 +287,11 @@ namespace DependenciesHunter
             {
                 filteredAssets = filteredAssets.Where(x => x.TypeName == _outputSettings.TypeFilter).ToList();
             }
+            
+            if (_outputSettings.ShowAssetsWithWarningsOnly)
+            {
+                filteredAssets = filteredAssets.Where(x => !string.IsNullOrEmpty(x.Warning)).ToList();
+            }
 
             if (!_analysisSettings.FindUnreferencedOnly && _outputSettings.ShowUnreferencedOnly)
             {
@@ -350,18 +374,27 @@ namespace DependenciesHunter
             _outputSettings.PathFilter = EditorGUILayout.TextField("Path Contains:", 
                 _outputSettings.PathFilter, GUILayout.Width(400f));
 
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            
 #if HUNT_ADDRESSABLES
             _outputSettings.ShowAddressables = EditorGUILayout.Toggle("Show Addressables:", 
                 _outputSettings.ShowAddressables);
 #endif
-
+            
             if (!_analysisSettings.FindUnreferencedOnly)
             {
-                _outputSettings.ShowUnreferencedOnly = EditorGUILayout.Toggle("Show Unreferenced Only:", 
+                _outputSettings.ShowUnreferencedOnly = EditorGUILayout.Toggle("Unreferenced Only:", 
                     _outputSettings.ShowUnreferencedOnly);
             }
 
+            _outputSettings.ShowAssetsWithWarningsOnly = EditorGUILayout.Toggle("Implicitly Unused Only", 
+                _outputSettings.ShowAssetsWithWarningsOnly);
+
             textFieldStyle.alignment = prevTextFieldAlignment;
+            
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
             
             prevColor = GUI.color;
 
@@ -454,11 +487,30 @@ namespace DependenciesHunter
                 var asset = filteredAssets[i];
                 EditorGUILayout.BeginHorizontal();
                 
-                EditorGUILayout.LabelField(i.ToString(), GUILayout.Width(40f));
-                
                 prevColor = GUI.color;
-                GUI.color = asset.ValidType ? Color.white : Color.red;
-                EditorGUILayout.LabelField(asset.TypeName, GUILayout.Width(150f));    
+
+                var color = Color.white;
+                if (!asset.ValidType)
+                {
+                    color = Color.red;
+                }
+                else if (!string.IsNullOrEmpty(asset.Warning))
+                {
+                    color = Color.yellow;
+                }
+
+                GUI.color = color;
+                
+                if (string.IsNullOrEmpty(asset.Warning))
+                {
+                    EditorGUILayout.LabelField(i.ToString(), GUILayout.Width(40f));
+                }
+                else
+                {
+                    asset.Foldout = EditorGUILayout.Foldout(asset.Foldout, i + " (i)");
+                }
+                
+                EditorGUILayout.LabelField(asset.TypeName, GUILayout.Width(75f));    
                 GUI.color = prevColor;
 
                 if (asset.ValidType)
@@ -489,17 +541,21 @@ namespace DependenciesHunter
                 
                 prevColor = GUI.color;
                 
-                if (!_analysisSettings.FindUnreferencedOnly)
-                    GUI.color = asset.ReferencesCount > 0 ? Color.white : Color.red;
+                GUI.color = asset.ReferencesCount > 0 ? Color.white : Color.yellow;
                 
-                EditorGUILayout.LabelField("Refs:" + asset.ReferencesCount,
+                EditorGUILayout.LabelField($"Refs:{asset.ReferencesCount}",
                     GUILayout.Width(70f));
                 
                 GUI.color = prevColor;
-
-                EditorGUILayout.LabelField(asset.Path);
+                
+                EditorGUILayout.LabelField(asset.ShortPath);
 
                 EditorGUILayout.EndHorizontal();
+
+                if (asset.Foldout)
+                {
+                    EditorGUILayout.LabelField($"[{asset.Warning}]");
+                }
             }
 
             GUILayout.FlexibleSpace();
@@ -989,7 +1045,7 @@ namespace DependenciesHunter
 
     public class AssetData
     {
-        public static AssetData Create(string path, int referencesCount)
+        public static AssetData Create(string path, int referencesCount, string warning)
         {
             var type = AssetDatabase.GetMainAssetTypeAtPath(path);
             string typeName;
@@ -1010,28 +1066,34 @@ namespace DependenciesHunter
             var fileInfo = new FileInfo(path);
             var bytesSize = fileInfo.Length;
             return new AssetData(path, type, typeName, bytesSize, 
-                CommonUtilities.GetReadableSize(bytesSize), isAddressable, referencesCount);
+                CommonUtilities.GetReadableSize(bytesSize), isAddressable, referencesCount, warning);
         }
         
-        private AssetData(string path, Type type, string typeName, long bytesSize, string readableSize, bool addressable, int referencesCount)
+        private AssetData(string path, Type type, string typeName, long bytesSize, 
+            string readableSize, bool addressable, int referencesCount, string warning)
         {
             Path = path;
+            ShortPath = Path.Replace("Assets/", string.Empty);
             Type = type;
             TypeName = typeName;
             BytesSize = bytesSize;
             ReadableSize = readableSize;
             IsAddressable = addressable;
             ReferencesCount = referencesCount;
+            Warning = warning;
         }
 
         public string Path { get; }
+        public string ShortPath { get; }
         public Type Type { get; }
         public string TypeName { get; }
         public long BytesSize { get; }
         public string ReadableSize { get; }
         public bool IsAddressable { get; }
         public int ReferencesCount { get; }
+        public string Warning { get; }
         public bool ValidType => Type != null;
+        public bool Foldout { get; set; }
     }
 
     public static class GUIUtilities
