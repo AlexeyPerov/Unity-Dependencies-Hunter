@@ -1,4 +1,4 @@
-﻿// #define HUNT_ADDRESSABLES
+// #define HUNT_ADDRESSABLES
 
 using System;
 using System.Collections.Generic;
@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using Unity.VisualScripting;
 using UnityEditor;
 #if UNITY_2021_2_OR_NEWER
 using UnityEditor.Build;
@@ -31,6 +32,20 @@ namespace DependenciesHunter
             public List<AssetData> Assets { get; } = new List<AssetData>();
             public Dictionary<string, int> RefsByTypes { get; } = new Dictionary<string, int>();
             public string OutputDescription { get; set; }
+        }
+
+        public int DeleteUnusedAssets(List<AssetData> assets)
+        {
+            int deletedAssetCount = 0;
+            foreach (AssetData resultAsset in assets)
+            {
+                bool hasDeletedAsset = AssetDatabase.DeleteAsset("Assets/" + resultAsset.ShortPath);
+                if (hasDeletedAsset)
+                {
+                    deletedAssetCount += 1;
+                }
+            }
+            return deletedAssetCount;
         }
 
         private class AnalysisSettings
@@ -300,7 +315,7 @@ namespace DependenciesHunter
             
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField(_result.OutputDescription);
-
+            
             if (filteredAssets.Count < 1000)
             {
                 if (GUILayout.Button("Save to Clipboard", GUILayout.Width(250f)))
@@ -318,6 +333,15 @@ namespace DependenciesHunter
                 }
             }
 
+            if (filteredAssets.Count > 0)
+            {
+                if(GUILayout.Button("Delete unused assets", GUILayout.Width(250f)))
+                {
+                    int deletedCount = DeleteUnusedAssets(filteredAssets);
+                    Debug.Log($"Deleted {deletedCount} assets");
+                    EditorUtility.DisplayDialog("DependenciesHunter", $"Deleted {deletedCount} assets", "Ok");
+                }
+            }
             EditorGUILayout.EndHorizontal();
 
             _pagesScroll = EditorGUILayout.BeginScrollView(_pagesScroll);
@@ -1154,3 +1178,4 @@ namespace DependenciesHunter
         }
     }
 }
+
