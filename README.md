@@ -42,6 +42,9 @@ The tool has two ways to use it. Each has a menu option, and an editor window.
 ## To list all unused assets in your project..
 ..click on "Tools/Dependencies Hunter" option which will open the "AllProjectAssetsReferencesWindow" window.
 
+## To then delete the assets you filtered
+..click on "Tools/Dependencies Hunter" and then click on Delete Unused Assets
+
 ![plot](./Screenshots/project_analysis_unused.png)
 
 ## To list all references towards selected assets..
