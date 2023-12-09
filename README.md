@@ -5,7 +5,7 @@
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Naereen/StrapDown.js/graphs/commit-activity)
 
 ##
-This tool finds unreferenced assets in Unity project.
+This tool finds and/or deletes unreferenced assets in Unity project.
 
 All code combined into one script for easier portability.
 So you can just copy-paste [DependenciesHunter.cs](./Packages/DependenciesHunter/Editor/DependenciesHunter.cs) to your project in any Editor folder.
