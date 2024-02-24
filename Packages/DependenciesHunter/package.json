@@ -1,5 +1,5 @@
 {
-  "name": "unity-dependencies-hunter",
+  "name": "com.alexeyperov.unity-dependencies-hunter",
   "version": "1.0.0",
   "displayName": "Dependencies Hunter",
   "description": "This tool finds unreferenced assets in your Unity project.",
