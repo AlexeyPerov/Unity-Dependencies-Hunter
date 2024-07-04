@@ -39,7 +39,7 @@ namespace DependenciesHunter
             int deletedAssetCount = 0;
             foreach (AssetData resultAsset in assets)
             {
-                bool hasDeletedAsset = AssetDatabase.DeleteAsset("Assets/" + resultAsset.ShortPath);
+                bool hasDeletedAsset = AssetDatabase.DeleteAsset(resultAsset.Path);
                 if (hasDeletedAsset)
                 {
                     deletedAssetCount += 1;
