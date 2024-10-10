@@ -869,7 +869,8 @@ namespace DependenciesHunter
 
                 if (_selectedObjectsFoldouts[i])
                 {
-                    _foldoutsScrolls[i] = GUILayout.BeginScrollView(_foldoutsScrolls[i]);
+                    const float itemHeight = 18f;
+                    _foldoutsScrolls[i] = GUILayout.BeginScrollView(_foldoutsScrolls[i], GUILayout.MinHeight(dependencies.Count * itemHeight + TabLength));
 
                     foreach (var resultPath in dependencies)
                     {
@@ -884,7 +885,7 @@ namespace DependenciesHunter
                         var alignment = GUI.skin.button.alignment;
                         GUI.skin.button.alignment = TextAnchor.MiddleLeft;
 
-                        if (GUILayout.Button(guiContent, GUILayout.MinWidth(300f), GUILayout.Height(18f)))
+                        if (GUILayout.Button(guiContent, GUILayout.MinWidth(300f), GUILayout.Height(itemHeight)))
                         {
                             Selection.objects = new[] {AssetDatabase.LoadMainAssetAtPath(resultPath)};
                         }
