@@ -29,11 +29,12 @@ Such assets considered as unused if they aren't marked as to be ignored in this 
 
 ### Addressables
 
-To enable addressables usage uncomment the first line.
+To enable addressables usage uncomment the first line
 
 ```code
 // #define HUNT_ADDRESSABLES
 ```
+or add HUNT_ADDRESSABLES to the 'Scripting Define Settings' in PlayerSettings
 
 # Ways of usage
 
