@@ -33,8 +33,8 @@ namespace DependenciesHunter
                 FindUnreferencedOnly = findUnreferencedOnly;
             }
 
-            public List<AssetData> Assets { get; } = new();
-            public Dictionary<string, int> RefsByTypes { get; } = new();
+            public List<AssetData> Assets { get; } = new List<AssetData>();
+            public Dictionary<string, int> RefsByTypes { get; } = new Dictionary<string, int>();
             public string OutputDescription { get; set; }
             public bool FindUnreferencedOnly { get; }
         }
@@ -62,7 +62,7 @@ namespace DependenciesHunter
         private class AnalysisSettings
         {
             // ReSharper disable once StringLiteralTypo
-            public readonly List<string> DefaultIgnorePatterns = new()
+            public readonly List<string> DefaultIgnorePatterns = new List<string>
             {
                 @"/Resources/",
                 @"/Editor/",
@@ -426,21 +426,21 @@ namespace DependenciesHunter
 
             var sortType = _outputSettings.SortType;
             
-            GUI.color = sortType is 0 or 1 ? Color.yellow : Color.white;
+            GUI.color = sortType == 0 || sortType == 1 ? Color.yellow : Color.white;
             var orderType = sortType == 1 ? "Z-A" : "A-Z";
             if (GUILayout.Button("Sort by type " + orderType, GUILayout.Width(150f)))
             {
                 SortByType();
             }
         
-            GUI.color = sortType is 2 or 3 ? Color.yellow : Color.white;
+            GUI.color = sortType == 2 || sortType == 3 ? Color.yellow : Color.white;
             orderType = sortType == 3 ? "Z-A" : "A-Z";
             if (GUILayout.Button("Sort by path " + orderType, GUILayout.Width(150f)))
             {
                 SortByPath();
             }
             
-            GUI.color = sortType is 4 or 5 ? Color.yellow : Color.white;
+            GUI.color = sortType == 4 || sortType == 5 ? Color.yellow : Color.white;
             orderType = sortType == 5 ? "Z-A" : "A-Z";
             if (GUILayout.Button("Sort by size " + orderType, GUILayout.Width(150f)))
             {
@@ -560,7 +560,7 @@ namespace DependenciesHunter
                     asset.Foldout = EditorGUILayout.Foldout(asset.Foldout, i + " (i)");
                 }
 
-                var typeStr = asset.TypeName.Length > 13 ? asset.TypeName[..13] + ".." : asset.TypeName;
+                var typeStr = asset.TypeName.Length > 13 ? asset.TypeName.Substring(0, 13) + ".." : asset.TypeName;
                 EditorGUILayout.LabelField(typeStr, GUILayout.Width(100f));    
                 GUI.color = prevColor;
 
