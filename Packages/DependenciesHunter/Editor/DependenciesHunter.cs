@@ -133,11 +133,7 @@ namespace DependenciesHunter
             _result = new Result(_analysisSettings.FindUnreferencedOnly);
             _outputSettings = new OutputSettings();
 
-            // ReSharper disable once ConvertIfStatementToNullCoalescingAssignment
-            if (_service == null)
-            {
-                _service = new ProjectAssetsAnalysisUtilities();
-            }
+            _service = new ProjectAssetsAnalysisUtilities();
             
             Clear();
 
@@ -647,9 +643,11 @@ namespace DependenciesHunter
             GUIUtilities.HorizontalLine();
             
             var isPatternsListDirty = false;
+            
+            EditorGUILayout.LabelField("Patterns Ignored in Output:");
 
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Format: RegExp patterns");
+            EditorGUILayout.LabelField("Format - RegExp");
             if (GUILayout.Button("Set Default", GUILayout.Width(300f)))
             {
                 _analysisSettings.IgnoredPatterns = _analysisSettings.DefaultIgnorePatterns.ToList();
@@ -822,12 +820,8 @@ namespace DependenciesHunter
 
         private void Start()
         {
-            // ReSharper disable once ConvertIfStatementToNullCoalescingAssignment
-            if (_service == null)
-            {
-                _service = new SelectedAssetsAnalysisUtilities();
-            }
-
+            _service = new SelectedAssetsAnalysisUtilities();
+            
             Show();
 
             var startTime = Time.realtimeSinceStartup;
@@ -1111,7 +1105,7 @@ namespace DependenciesHunter
             {
                 EditorUtility.DisplayProgressBar("Dependencies Hunter", "Creating a map of dependencies",
                     (float) i / assetPaths.Count);
-
+                
                 var assetDependencies = AssetDatabase.GetDependencies(assetPaths[i], false);
 
                 foreach (var assetDependency in assetDependencies)
@@ -1145,8 +1139,18 @@ namespace DependenciesHunter
 
             var isAddressable = CommonUtilities.IsAssetAddressable(path);
 
-            var fileInfo = new FileInfo(path);
-            var bytesSize = fileInfo.Length;
+            var bytesSize = 0L;
+
+            try
+            {
+                var fileInfo = new FileInfo(path);
+                bytesSize = fileInfo.Length;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Error reading file {path} with error: {e}. Unable to detect its size.");
+            }
+
             return new AssetData(path, type, typeName, bytesSize, 
                 CommonUtilities.GetReadableSize(bytesSize), isAddressable, referencesCount, warning);
         }
