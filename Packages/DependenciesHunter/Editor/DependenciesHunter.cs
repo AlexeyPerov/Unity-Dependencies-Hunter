@@ -797,7 +797,8 @@ namespace DependenciesHunter
     /// </summary>
     public class SelectedAssetsReferencesWindow : EditorWindow
     {
-        private SelectedAssetsAnalysisUtilities _service;
+        private static SelectedAssetsAnalysisUtilities _service;
+        private static bool _cachedLaunchRequested;
 
         private Dictionary<Object, List<string>> _lastResults;
 
@@ -811,17 +812,27 @@ namespace DependenciesHunter
         private Vector2[] _foldoutsScrolls;
 
         // Added DH to avoid clash with Unity's built in menu item
-        [MenuItem("Assets/DH - Find References In Project", false, 20)]
+        [MenuItem("Assets/[DH] Find References In Project", false, 20)]
         public static void FindReferences()
         {
             var window = GetWindow<SelectedAssetsReferencesWindow>("Selected Assets");
+            _cachedLaunchRequested = false;
+            window.Start();
+        }
+        
+        [MenuItem("Assets/[DH] Find References In Project (Previous Cache)", false, 20)]
+        public static void FindReferencesCached()
+        {
+            var window = GetWindow<SelectedAssetsReferencesWindow>("Selected Assets");
+            _cachedLaunchRequested = true;
             window.Start();
         }
 
         private void Start()
         {
-            _service = new SelectedAssetsAnalysisUtilities();
-            
+            if (!_cachedLaunchRequested ||_service == null)
+                _service = new SelectedAssetsAnalysisUtilities();
+
             Show();
 
             var startTime = Time.realtimeSinceStartup;
@@ -836,9 +847,17 @@ namespace DependenciesHunter
 
             _workTime = Time.realtimeSinceStartup - startTime;
             _selectedObjectsFoldouts = new bool[_selectedObjects.Length];
-            if (_selectedObjectsFoldouts.Length == 1)
+            
+            if (_selectedObjectsFoldouts.Length >= 7)
             {
                 _selectedObjectsFoldouts[0] = true;
+            }
+            else
+            {
+                for (var i = 0; i < _selectedObjectsFoldouts.Length; i++)
+                {
+                    _selectedObjectsFoldouts[i] = true;
+                }
             }
 
             _foldoutsScrolls = new Vector2[_selectedObjectsFoldouts.Length];
@@ -867,8 +886,41 @@ namespace DependenciesHunter
 
             GUILayout.BeginVertical();
 
+            GUILayout.BeginHorizontal();
+            
             GUIUtilities.DrawColoredLabel($"Analysis done in: {_workTime:0.00} s", Color.gray);
 
+            var hasCollapsed = _selectedObjectsFoldouts.Any(x => !x);
+            var hasExpanded = _selectedObjectsFoldouts.Any(x => x);
+
+            var prevColor = GUI.color;
+
+            GUI.color = hasCollapsed ? Color.white : Color.gray;
+            
+            if (GUILayout.Button("Expand All"))
+            {
+                for (var i = 0; i < _selectedObjectsFoldouts.Length; i++)
+                {
+                    _selectedObjectsFoldouts[i] = true;
+                }
+            }
+            
+            GUI.color = hasExpanded ? Color.white : Color.gray;
+            
+            if (GUILayout.Button("Collapse All"))
+            {
+                for (var i = 0; i < _selectedObjectsFoldouts.Length; i++)
+                {
+                    _selectedObjectsFoldouts[i] = false;
+                }
+            }
+
+            GUI.color = prevColor;
+            
+            GUILayout.FlexibleSpace();
+            
+            GUILayout.EndHorizontal();
+            
             var results = _lastResults;
 
             _scrollPos = GUILayout.BeginScrollView(_scrollPos);

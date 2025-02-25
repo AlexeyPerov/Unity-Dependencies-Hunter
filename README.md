@@ -49,8 +49,10 @@ The tool has two ways to use it. Each has a menu option, and an editor window.
 ![plot](./Screenshots/project_analysis_unused.png)
 
 ## To list all references towards selected assets..
-..select the assets and use a context menu option "Find References in Project".
-It will open the "SelectedAssetsReferencesWindow" window with the results.
+..select the assets and use a context menu option "[DH] Find References in Project".
+It will open the "SelectedAssetsReferencesWindow" window with the results. 
+There is also an option "[DH] Find References in Project (Previous Cache)" which will try to use the dependencies database cache from the previous launch and so will perform much faster. 
+This might be useful if for example you want to run multiple analysis without changing assets.
 
 | Context Menu  | Result Window |
 | ------------- | ------------- |
@@ -80,11 +82,11 @@ or to [contribute](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/pull
 
 ##### Missing References Hunter
 
-To find missing or empty references in your assets see [Missing-References-Hunter](https://github.com/AlexeyPerov/Unity-MissingReferences-Hunter).
+- To find missing or empty references in your assets see [Missing-References-Hunter](https://github.com/AlexeyPerov/Unity-MissingReferences-Hunter).
 
 ##### Textures Hunter
 
-To analyze your textures and atlases see [Textures-Hunter](https://github.com/AlexeyPerov/Unity-Textures-Hunter).
+- To analyze your textures and atlases see [Textures-Hunter](https://github.com/AlexeyPerov/Unity-Textures-Hunter).
 
 ##### Editor Coroutines
 
