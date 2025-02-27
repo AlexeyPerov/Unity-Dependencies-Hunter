@@ -51,6 +51,7 @@ The tool has two ways to use it. Each has a menu option, and an editor window.
 ## To list all references towards selected assets..
 ..select the assets and use a context menu option "[DH] Find References in Project".
 It will open the "SelectedAssetsReferencesWindow" window with the results. 
+
 There is also an option "[DH] Find References in Project (Previous Cache)" which will try to use the dependencies database cache from the previous launch and so will perform much faster. 
 This might be useful if for example you want to run multiple analysis without changing assets.
 
