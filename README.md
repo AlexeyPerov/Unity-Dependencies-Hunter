@@ -27,7 +27,7 @@ to find dependencies for each of those assets. As a result dependencies map is f
 Then it simply finds all assets which are not presented as a dependency within this map.
 Such assets considered as unused if they aren't marked as to be ignored in this analysis (by a list of RegExp patterns).
 
-### Addressables
+## Addressables
 
 To enable addressables usage uncomment the first line
 
@@ -35,6 +35,17 @@ To enable addressables usage uncomment the first line
 // #define HUNT_ADDRESSABLES
 ```
 or add HUNT_ADDRESSABLES to the 'Scripting Define Settings' in PlayerSettings
+
+### AssetReference search
+
+By default Addresables AssetReference properties are not considered as a dependency by AssetDatabase.GetDependencies 
+and thus are ignored by the tool.
+
+However if you want to treat them as regular references got to Analysis Settings and set 'ScanForAssetReferences' toggle.
+
+Defining HUNT_ADDRESSABLES define also add two more options to the context menu
+- [DH] Find References In Project (incl Asset References)
+- [DH] Find References In Project (incl Asset References)(Previous Cache)
 
 # Ways of usage
 

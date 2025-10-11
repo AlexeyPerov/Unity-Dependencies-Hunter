@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -16,6 +17,7 @@ using UnityEditor.AddressableAssets;
 #endif
 using UnityEngine;
 using UnityEngine.U2D;
+using Debug = UnityEngine.Debug;
 using Object = UnityEngine.Object;
 
 // ReSharper disable once CheckNamespace
@@ -61,7 +63,6 @@ namespace DependenciesHunter
 
         private class AnalysisSettings
         {
-            // ReSharper disable once StringLiteralTypo
             public readonly List<string> DefaultIgnorePatterns = new List<string>
             {
                 @"/Resources/",
@@ -70,21 +71,30 @@ namespace DependenciesHunter
                 @"/ThirdParty/",
                 @"ProjectSettings/",
                 @"Packages/",
+                // ReSharper disable once StringLiteralTypo
                 @"\.asmdef$",
                 @"link\.xml$",
                 @"\.csv$",
                 @"\.md$",
                 @"\.json$",
                 @"\.xml$",
-                @"\.txt$"
+                @"\.txt$",
+                // ReSharper disable once StringLiteralTypo
+                @"\.spriteatlas"
             };
             
             // ReSharper disable once InconsistentNaming
-            public const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatterns";
+            public const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatternsList";
             
             public List<string> IgnoredPatterns { get; set; }
 
             public bool FindUnreferencedOnly { get; set; } = true;
+            
+            /// <summary>
+            /// Set to true to scan also for Addressables AssetReference properties
+            /// NOTE: this might make scanning longer.
+            /// </summary>
+            public bool ScanForAssetReferences { get; set; }
         }
 
         private class OutputSettings
@@ -143,10 +153,16 @@ namespace DependenciesHunter
             }
             
             _outputSettings.PageToShow = 0;
+
+            var stopWatch = new Stopwatch();
+            stopWatch.Start();
             
             Show();
 
-            DependenciesMapUtilities.FillReverseDependenciesMap(out var map);
+            DependenciesMapUtilities.FillReverseDependenciesMap(
+                _analysisSettings.ScanForAssetReferences, 
+                EditorSettings.serializationMode != SerializationMode.ForceText, 
+                out var map);
 
             EditorUtility.ClearProgressBar();
 
@@ -243,6 +259,9 @@ namespace DependenciesHunter
             SortByPath();
 
             EditorUtility.ClearProgressBar();
+            
+            stopWatch.Stop();
+            Debug.Log($"Scanning took: {stopWatch.Elapsed.TotalSeconds} sec");
             
             Debug.Log(filteredOutput.ToString());
             Debug.Log(_result.OutputDescription);
@@ -640,6 +659,26 @@ namespace DependenciesHunter
             
             EditorGUILayout.LabelField("* Uncheck to list all assets with their references count", GUILayout.Width(350f));
             
+            EditorGUILayout.BeginHorizontal();
+
+            EditorGUILayout.LabelField("Scan Addressables AssetReferences");
+            _analysisSettings.ScanForAssetReferences = EditorGUILayout.Toggle(string.Empty, 
+                _analysisSettings.ScanForAssetReferences);
+            GUILayout.FlexibleSpace();
+            
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.LabelField("* set to also scan Addressables AssetReference properties");
+            EditorGUILayout.LabelField("* this might make scanning much longer");
+            
+            EditorGUILayout.BeginHorizontal();
+
+            EditorGUILayout.LabelField($"Serialization Mode: {EditorSettings.serializationMode}");
+
+            GUILayout.FlexibleSpace();
+            
+            EditorGUILayout.EndHorizontal();
+            
             GUIUtilities.HorizontalLine();
             
             var isPatternsListDirty = false;
@@ -799,6 +838,7 @@ namespace DependenciesHunter
     {
         private static SelectedAssetsAnalysisUtilities _service;
         private static bool _cachedLaunchRequested;
+        private static bool _searchForAssetReferences;
 
         private Dictionary<Object, List<string>> _lastResults;
 
@@ -811,12 +851,12 @@ namespace DependenciesHunter
         private Vector2 _scrollPos = Vector2.zero;
         private Vector2[] _foldoutsScrolls;
 
-        // Added DH to avoid clash with Unity's built in menu item
         [MenuItem("Assets/[DH] Find References In Project", false, 20)]
         public static void FindReferences()
         {
             var window = GetWindow<SelectedAssetsReferencesWindow>("Selected Assets");
             _cachedLaunchRequested = false;
+            _searchForAssetReferences = false;
             window.Start();
         }
         
@@ -825,8 +865,29 @@ namespace DependenciesHunter
         {
             var window = GetWindow<SelectedAssetsReferencesWindow>("Selected Assets");
             _cachedLaunchRequested = true;
+            _searchForAssetReferences = false;
             window.Start();
         }
+        
+#if HUNT_ADDRESSABLES
+        [MenuItem("Assets/[DH] Find References In Project (incl Asset References)", false, 20)]
+        public static void FindReferencesInclAssetReferences()
+        {
+            var window = GetWindow<SelectedAssetsReferencesWindow>("Selected Assets");
+            _cachedLaunchRequested = false;
+            _searchForAssetReferences = true;
+            window.Start();
+        }
+        
+        [MenuItem("Assets/[DH] Find References In Project (incl Asset References)(Previous Cache)", false, 20)]
+        public static void FindReferencesCachedInclAssetReferences()
+        {
+            var window = GetWindow<SelectedAssetsReferencesWindow>("Selected Assets");
+            _cachedLaunchRequested = true;
+            _searchForAssetReferences = true;
+            window.Start();
+        }
+#endif
 
         private void Start()
         {
@@ -838,8 +899,13 @@ namespace DependenciesHunter
             var startTime = Time.realtimeSinceStartup;
 
             _selectedObjects = Selection.objects;
+            
+            var stopWatch = new Stopwatch();
+            stopWatch.Start();           
 
-            _lastResults = _service.GetReferences(_selectedObjects);
+            _lastResults = _service.GetReferences(_selectedObjects,
+                _searchForAssetReferences,
+                EditorSettings.serializationMode != SerializationMode.ForceText);
 
             EditorUtility.DisplayProgressBar("DependenciesHunter", "Preparing Assets", 1f);
             EditorUtility.UnloadUnusedAssetsImmediate();
@@ -861,6 +927,9 @@ namespace DependenciesHunter
             }
 
             _foldoutsScrolls = new Vector2[_selectedObjectsFoldouts.Length];
+            
+            stopWatch.Stop();
+            Debug.Log($"Scanning took: {stopWatch.Elapsed.TotalSeconds} sec");
         }
 
         private void Clear()
@@ -988,7 +1057,7 @@ namespace DependenciesHunter
                     var isAddressable = CommonUtilities.IsAssetAddressable(selectedObjectPath);
                     if (isAddressable)
                     {
-                        GUIUtilities.DrawColoredLabel("*please notice that this asset is an addressable and can be accessed via AssetReference", Color.yellow);
+                        GUIUtilities.DrawColoredLabel("*please notice that this asset is an addressable and can be accessed via AssetReference or code", Color.yellow);
                     }
 
                     var isInResources = selectedObjectPath.Contains("/Resources/") ||
@@ -1100,7 +1169,7 @@ namespace DependenciesHunter
     {
         private Dictionary<string, List<string>> _cachedAssetsMap;
 
-        public Dictionary<Object, List<string>> GetReferences(Object[] selectedObjects)
+        public Dictionary<Object, List<string>> GetReferences(Object[] selectedObjects, bool scanAssetReferences, bool binarySerialization)
         {
             if (selectedObjects == null)
             {
@@ -1110,7 +1179,7 @@ namespace DependenciesHunter
 
             if (_cachedAssetsMap == null)
             {
-                DependenciesMapUtilities.FillReverseDependenciesMap(out _cachedAssetsMap);
+                DependenciesMapUtilities.FillReverseDependenciesMap(scanAssetReferences, binarySerialization, out _cachedAssetsMap);
             }
 
             EditorUtility.ClearProgressBar();
@@ -1145,7 +1214,7 @@ namespace DependenciesHunter
 
     public static class DependenciesMapUtilities
     {
-        public static void FillReverseDependenciesMap(out Dictionary<string, List<string>> reverseDependencies)
+        public static void FillReverseDependenciesMap(bool scanAssetReferences, bool binarySerialization, out Dictionary<string, List<string>> reverseDependencies)
         {
             var assetPaths = AssetDatabase.GetAllAssetPaths().ToList();
 
@@ -1156,9 +1225,11 @@ namespace DependenciesHunter
             for (var i = 0; i < assetPaths.Count; i++)
             {
                 EditorUtility.DisplayProgressBar("Dependencies Hunter", "Creating a map of dependencies",
-                    (float) i / assetPaths.Count);
+                    (float)i / assetPaths.Count);
                 
-                var assetDependencies = AssetDatabase.GetDependencies(assetPaths[i], false);
+                var assetDependencies =
+                    scanAssetReferences ? GetAllDependencies(assetPaths[i], binarySerialization, false)
+                        : AssetDatabase.GetDependencies(assetPaths[i], false);
 
                 foreach (var assetDependency in assetDependencies)
                 {
@@ -1167,6 +1238,98 @@ namespace DependenciesHunter
                         reverseDependencies[assetDependency].Add(assetPaths[i]);
                     }
                 }
+            }
+        }
+        
+        private static readonly Regex GuidRegex = new Regex(@"m_AssetGUID:\s*([0-9a-fA-F]{32})",
+            RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+        private static string[] GetAllDependencies(string assetPath, bool binarySerialization, bool recursive = true)
+        {
+            var regularDependencies = AssetDatabase.GetDependencies(assetPath, recursive);
+            
+            if (!CanContainAssetReferencesByExtension(assetPath))
+                return regularDependencies;
+
+            if (binarySerialization)
+            {
+                var obj = AssetDatabase.LoadAssetAtPath<Object>(assetPath);
+
+                if (obj == null)
+                    return regularDependencies;
+
+                HashSet<string> result = null;
+
+                var serializedObj = new SerializedObject(obj);
+                var iterator = serializedObj.GetIterator();
+
+                while (iterator.NextVisible(true))
+                {
+                    if (iterator.propertyType != SerializedPropertyType.Generic ||
+                        !iterator.type.Contains("AssetReference"))
+                        continue;
+
+                    var guidProp = iterator.FindPropertyRelative("m_AssetGUID");
+                    if (guidProp == null || string.IsNullOrEmpty(guidProp.stringValue))
+                        continue;
+
+                    var refPath = AssetDatabase.GUIDToAssetPath(guidProp.stringValue);
+                    if (!string.IsNullOrEmpty(refPath))
+                    {
+                        result ??= regularDependencies.ToHashSet();
+                        result.Add(refPath);
+                    }
+                }
+                
+                return result != null ? result.ToArray() : regularDependencies;
+            }
+            else
+            {
+                if (!File.Exists(assetPath))
+                    return regularDependencies;
+
+                var content = File.ReadAllText(assetPath);
+
+                if (!content.Contains("m_AssetGUID"))
+                    return regularDependencies;
+                
+                HashSet<string> result = null;
+
+                foreach (Match match in GuidRegex.Matches(content))
+                {
+                    if (match == null || match.Groups.Count <= 1)
+                        continue;
+                    
+                    var guid = match.Groups[1].Value;
+                    
+                    if (string.IsNullOrEmpty(guid))
+                        continue;
+
+                    var refPath = AssetDatabase.GUIDToAssetPath(guid);
+
+                    if (!string.IsNullOrEmpty(refPath))
+                    {
+                        result ??= regularDependencies.ToHashSet();
+                        result.Add(refPath);
+                    }
+                }
+
+                return result != null ? result.ToArray() : regularDependencies;
+            }
+        }
+
+        private static bool CanContainAssetReferencesByExtension(string assetPath)
+        {
+            var extension = Path.GetExtension(assetPath).ToLowerInvariant();
+
+            switch (extension)
+            {
+                case ".asset":
+                case ".prefab":
+                case ".unity":
+                    return true;
+                default:
+                    return false;
             }
         }
     }
