@@ -41,11 +41,12 @@ or add HUNT_ADDRESSABLES to the 'Scripting Define Settings' in PlayerSettings
 By default Addresables AssetReference properties are not considered as a dependency by AssetDatabase.GetDependencies 
 and thus are ignored by the tool.
 
-However if you want to treat them as regular references got to Analysis Settings and set 'ScanForAssetReferences' toggle.
+However if you want to treat them as regular references go to Analysis Settings and set 'ScanForAssetReferences' toggle to true.
 
-Defining HUNT_ADDRESSABLES define also add two more options to the context menu
+Defining HUNT_ADDRESSABLES define also adds two more options to the context menu
 - [DH] Find References In Project (incl Asset References)
 - [DH] Find References In Project (incl Asset References)(Previous Cache)
+This options also treat AssetReference as a regular dependency.
 
 # Ways of usage
 
