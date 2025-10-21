@@ -46,6 +46,7 @@ However if you want to treat them as regular references go to Analysis Settings 
 Defining HUNT_ADDRESSABLES define also adds two more options to the context menu
 - [DH] Find References In Project (incl Asset References)
 - [DH] Find References In Project (incl Asset References)(Previous Cache)
+
 This options also treat AssetReference as a regular dependency.
 
 # Ways of usage
