@@ -8,7 +8,7 @@
 This tool finds and/or deletes unreferenced assets in Unity project.
 
 All code combined into one script for easier portability.
-So you can just copy-paste [DependenciesHunter.cs](./Packages/DependenciesHunter/Editor/DependenciesHunter.cs) to your project in any Editor folder.
+So you can just copy-paste [DependenciesHunter.cs](./Editor/DependenciesHunter.cs) to your project in any Editor folder.
 
 # How it works
 
@@ -38,7 +38,7 @@ or add HUNT_ADDRESSABLES to the 'Scripting Define Settings' in PlayerSettings
 
 ### AssetReference search
 
-By default Addresables AssetReference properties are not considered as a dependency by AssetDatabase.GetDependencies 
+By default Addressables AssetReference properties are not considered as a dependency by AssetDatabase.GetDependencies 
 and thus are ignored by the tool.
 
 However if you want to treat them as regular references go to Analysis Settings and set 'ScanForAssetReferences' toggle to true.
@@ -59,7 +59,7 @@ The tool has two ways to use it. Each has a menu option, and an editor window.
 ## To then delete the assets you filtered
 ..click on "Tools/Dependencies Hunter" and then click on Delete Unused Assets
 
-![plot](./Screenshots/project_analysis_unused.png)
+![plot](./Screenshots~/project_analysis_unused.png)
 
 ## To list all references towards selected assets..
 ..select the assets and use a context menu option "[DH] Find References in Project".
@@ -68,9 +68,9 @@ It will open the "SelectedAssetsReferencesWindow" window with the results.
 There is also an option "[DH] Find References in Project (Previous Cache)" which will try to use the dependencies database cache from the previous launch and so will perform much faster. 
 This might be useful if for example you want to run multiple analysis without changing assets.
 
-| Context Menu  | Result Window |
-| ------------- | ------------- |
-| ![plot](./Screenshots/context_menu.png) | ![plot](./Screenshots/context_menu_result.png) |
+| Context Menu                             | Result Window                                   |
+|------------------------------------------|-------------------------------------------------|
+| ![plot](./Screenshots~/context_menu.png) | ![plot](./Screenshots~/context_menu_result.png) |
 
 ## Settings
 
@@ -78,14 +78,16 @@ In the Analysis Settings foldout you can set files to be ignored by providing a 
 You can also uncheck the 'Show Unreferenced Assets Only' toggle 
 to view the list of all your project assets with their references number, files sizes etc.
 
-| Analysis Settings  | Listing all Assets |
-| ------------- | ------------- |
-| ![plot](./Screenshots/ignore_patterns.png) | ![plot](./Screenshots/project_analysis_all.png) |
+| Analysis Settings                           | Listing all Assets                               |
+|---------------------------------------------|--------------------------------------------------|
+| ![plot](./Screenshots~/ignore_patterns.png) | ![plot](./Screenshots~/project_analysis_all.png) |
 
 ## Installation
 
- 1. Through Unity's Package Manager. Use this as git url: `https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git#upm`. UPM support added via [template](https://github.com/STARasGAMES/Unity-package-repo-setup-template).
- 2. Or you can just copy and paste file [DependenciesHunter.cs](./Packages/DependenciesHunter/Editor/DependenciesHunter.cs) inside Editor folder 
+ 1. Using Unity's Package Manager.
+- Use this URL https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git.
+- Or use deprecated URL `https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git#upm` for previous UPM support added via [template](https://github.com/STARasGAMES/Unity-package-repo-setup-template). However this link won't get new updates.
+ 2. You can also just copy and paste file [DependenciesHunter.cs](./Editor/DependenciesHunter.cs) inside Editor folder 
 
 ## Contributions
 

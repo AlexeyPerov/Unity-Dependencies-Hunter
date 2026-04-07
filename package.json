@@ -1,7 +1,7 @@
 {
   "name": "com.alexeyperov.unity-dependencies-hunter",
-  "version": "1.0.0",
-  "displayName": "Dependencies Hunter",
+  "version": "1.2.0",
+  "displayName": "DependenciesHunter",
   "description": "This tool finds unreferenced assets in your Unity project.",
   "unity": "2019.3",
   "keywords": [
@@ -9,7 +9,7 @@
     "tool"
   ],
   "author": {
-    "name": "Alexey Perov",
+    "name": "AlexeyPerov",
     "url": "https://github.com/AlexeyPerov/Unity-Dependencies-Hunter"
   }
 }

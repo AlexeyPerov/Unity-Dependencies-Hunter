@@ -76,6 +76,8 @@ crashlytics-build.properties
 # Exceptions
 !*.dll
 !*.obj
+!/*Screenshots~/
+!/*Documentation~/
 
 # Archives
 *.zip
