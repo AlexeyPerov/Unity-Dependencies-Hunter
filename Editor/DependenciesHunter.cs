@@ -63,15 +63,22 @@ namespace DependenciesHunter
 
         private class AnalysisSettings
         {
+            public bool FindUnreferencedOnly { get; set; } = true;
+
+            /// <summary>
+            /// Set to true to scan also for Addressables AssetReference properties
+            /// NOTE: this might make scanning longer.
+            /// </summary>
+            public bool ScanForAssetReferences { get; set; }
+            
             public readonly List<string> DefaultIgnorePatterns = new List<string>
             {
-                @"/Resources/",
-                @"/Editor/",
-                @"/Editor Default Resources/",
-                @"/ThirdParty/",
-                @"ProjectSettings/",
-                @"Packages/",
-                // ReSharper disable once StringLiteralTypo
+                "/Resources/",
+                "/Editor/",
+                "/Editor Default Resources/",
+                "/ThirdParty/",
+                "ProjectSettings/",
+                "Packages/",
                 @"\.asmdef$",
                 @"link\.xml$",
                 @"\.csv$",
@@ -79,24 +86,99 @@ namespace DependenciesHunter
                 @"\.json$",
                 @"\.xml$",
                 @"\.txt$",
-                // ReSharper disable once StringLiteralTypo
+                // ReSharper disable StringLiteralTypo
+                @"\.cginc",
                 @"\.spriteatlas"
+                // ReSharper enable StringLiteralTypo
             };
             
-            // ReSharper disable once InconsistentNaming
-            public const string PATTERNS_PREFS_KEY = "DependencyHunterIgnorePatternsList";
-            
-            public List<string> IgnoredPatterns { get; set; }
+            public List<string> IgnoredPatterns
+            {
+                get
+                {
+                    if (IgnoredPatternsAsset == null)
+                        return DefaultIgnorePatterns;
+                    return IgnoredPatternsAsset.IgnoredPatterns;
+                }
+            }
 
-            public bool FindUnreferencedOnly { get; set; } = true;
-            
-            /// <summary>
-            /// Set to true to scan also for Addressables AssetReference properties
-            /// NOTE: this might make scanning longer.
-            /// </summary>
-            public bool ScanForAssetReferences { get; set; }
+            public bool IsIgnoredPatternsAssetUsed => IgnoredPatternsAsset != null;
+            public bool TriedLoadingIgnoredPatterns { get; private set; }
+
+            public IgnoredPatternsAsset IgnoredPatternsAsset { get; private set; }
+
+            private const string IgnoredPatternsFileName = "DependenciesHunterIgnorePatterns.asset";
+            private static readonly string IgnoredPatternsFilePath = Path.Combine("Assets/Editor", IgnoredPatternsFileName);
+
+            public void CreateIgnoredPatternsAsset()
+            {
+                try
+                {
+                    if (!AssetDatabase.IsValidFolder("Assets/Editor"))
+                    {
+                        AssetDatabase.CreateFolder("Assets", "Editor");
+                    }
+                    
+                    var asset = CreateInstance<IgnoredPatternsAsset>();
+                    asset.IgnoredPatterns = new List<string>(DefaultIgnorePatterns);
+
+                    AssetDatabase.CreateAsset(asset, IgnoredPatternsFilePath);
+                    AssetDatabase.SaveAssets();
+                    AssetDatabase.Refresh();
+
+                    IgnoredPatternsAsset = asset;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"Failed to save SearchIgnorePatterns: {e}");
+                }
+            }
+
+            public void TryLoadIgnoredPatternsAsset()
+            {
+                try
+                {
+                    TriedLoadingIgnoredPatterns = true;
+                    
+                    if (!File.Exists(IgnoredPatternsFilePath))
+                    {
+                        return;
+                    }
+
+                    IgnoredPatternsAsset = AssetDatabase.LoadAssetAtPath<IgnoredPatternsAsset>(IgnoredPatternsFilePath);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning($"Failed to load IgnoredPatterns file: {e}");
+                }
+            }
+
+            public void DeleteIgnoredPatternsAsset()
+            {
+                try
+                {
+                    if (File.Exists(IgnoredPatternsFilePath))
+                    {
+                        File.Delete(IgnoredPatternsFilePath);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError($"Failed to delete IgnoredPatterns file: {e}");
+                }
+                finally
+                {
+                    AssetDatabase.Refresh();
+                }
+            }
         }
 
+        private class IgnoredPatternsAsset : ScriptableObject
+        {
+            // ReSharper disable once InconsistentNaming
+            public List<string> IgnoredPatterns = new List<string>();
+        }
+        
         private class OutputSettings
         {
             public const int PageSize = 50;
@@ -131,6 +213,7 @@ namespace DependenciesHunter
         private Vector2 _typesScroll = Vector2.zero;
         private Vector2 _assetsScroll = Vector2.zero;
         private bool _analysisSettingsFoldout;
+        private bool _searchPatternsSettingsFoldout;
 
         [MenuItem("Tools/Dependencies Hunter")]
         public static void LaunchUnreferencedAssetsWindow()
@@ -680,63 +763,60 @@ namespace DependenciesHunter
             EditorGUILayout.EndHorizontal();
             
             GUIUtilities.HorizontalLine();
+
+            OnSearchPatternsSettingsGUI();
+        }
+        
+        private void OnSearchPatternsSettingsGUI()
+        {
+            _searchPatternsSettingsFoldout = EditorGUILayout.Foldout(_searchPatternsSettingsFoldout,
+                $"Search Patterns Settings. Total Patterns Used: {_analysisSettings.IgnoredPatterns.Count}.");
+
+            if (!_searchPatternsSettingsFoldout) 
+                return;
             
-            var isPatternsListDirty = false;
+            EditorGUILayout.LabelField("Here you can setup a list of RegExp TO IGNORE parts of project", GUILayout.Width(370f));
             
-            EditorGUILayout.LabelField("Patterns Ignored in Output:");
-
-            EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField("Format - RegExp");
-            if (GUILayout.Button("Set Default", GUILayout.Width(300f)))
-            {
-                _analysisSettings.IgnoredPatterns = _analysisSettings.DefaultIgnorePatterns.ToList();
-                isPatternsListDirty = true;
-            }
-
-            if (GUILayout.Button("Save to Clipboard"))
-            {
-                var contents = _analysisSettings.IgnoredPatterns.Aggregate("Patterns:", 
-                    (current, t) => current + "\n" + t);
-
-                EditorGUIUtility.systemCopyBuffer = contents;
-            }
+            GUIUtilities.HorizontalLine();
             
-            EditorGUILayout.EndHorizontal();
-
-            var newCount = Mathf.Max(0, EditorGUILayout.IntField("Count:", _analysisSettings.IgnoredPatterns.Count));
-
-            if (newCount != _analysisSettings.IgnoredPatterns.Count)
+            if (!_analysisSettings.IsIgnoredPatternsAssetUsed)
             {
-                isPatternsListDirty = true;
-            }
-
-            while (newCount < _analysisSettings.IgnoredPatterns.Count)
-            {
-                _analysisSettings.IgnoredPatterns.RemoveAt(_analysisSettings.IgnoredPatterns.Count - 1);
-            }
-
-            if (newCount > _analysisSettings.IgnoredPatterns.Count)
-            {
-                for (var i = _analysisSettings.IgnoredPatterns.Count; i < newCount; i++)
+                EditorGUILayout.LabelField("By default we ignore following folders:", GUILayout.Width(350f));
+                
+                for (var i = 0; i < _analysisSettings.IgnoredPatterns.Count; i++)
                 {
-                    _analysisSettings.IgnoredPatterns.Add(EditorPrefs.GetString($"{AnalysisSettings.PATTERNS_PREFS_KEY}_{i}"));
+                    EditorGUILayout.LabelField($"{i + 1}. {_analysisSettings.IgnoredPatterns[i]}");
+                }
+                
+                GUIUtilities.HorizontalLine();
+                
+                EditorGUILayout.LabelField("However you may override it by setting you own RegExp list in a file", GUILayout.Width(450f));
+
+                if (GUILayout.Button("Create Settings File for Custom RegExp Patterns"))
+                {
+                    _analysisSettings.CreateIgnoredPatternsAsset();
                 }
             }
-
-            for (var i = 0; i < _analysisSettings.IgnoredPatterns.Count; i++)
+            else
             {
-                var newValue = EditorGUILayout.TextField(_analysisSettings.IgnoredPatterns[i]);
-                if (_analysisSettings.IgnoredPatterns[i] != newValue)
+                if (GUILayout.Button("Open Settings File"))
                 {
-                    isPatternsListDirty = true;
-                    _analysisSettings.IgnoredPatterns[i] = newValue;
+                    var settings = _analysisSettings.IgnoredPatternsAsset;
+                    Selection.activeObject = settings;
+                    EditorGUIUtility.PingObject(settings);
+                }
+                
+                if (GUILayout.Button("Delete Settings File and Reset to Defaults"))
+                {
+                    _analysisSettings.DeleteIgnoredPatternsAsset();
                 }
             }
-
-            if (isPatternsListDirty)
-            {
-                SavePatterns();
-            }
+            
+            GUIUtilities.HorizontalLine();
+            
+            EditorGUILayout.LabelField("Please also note that any changes in this settings will be applied in the next launch", GUILayout.Width(650f));
+            
+            GUIUtilities.HorizontalLine();
         }
 
         private void EnsurePatternsLoaded()
@@ -747,35 +827,9 @@ namespace DependenciesHunter
                 _analysisSettings = new AnalysisSettings();
             }
             
-            if (_analysisSettings.IgnoredPatterns != null)
+            if (!_analysisSettings.TriedLoadingIgnoredPatterns)
             {
-                return;
-            }
-            
-            var count = EditorPrefs.GetInt(AnalysisSettings.PATTERNS_PREFS_KEY, -1);
-
-            if (count == -1)
-            {
-                _analysisSettings.IgnoredPatterns = _analysisSettings.DefaultIgnorePatterns.ToList();
-            }
-            else
-            {
-                _analysisSettings.IgnoredPatterns = new List<string>();
-                
-                for (var i = 0; i < count; i++)
-                {
-                    _analysisSettings.IgnoredPatterns.Add(EditorPrefs.GetString($"{AnalysisSettings.PATTERNS_PREFS_KEY}_{i}"));
-                }    
-            }
-        }
-
-        private void SavePatterns()
-        {
-            EditorPrefs.SetInt(AnalysisSettings.PATTERNS_PREFS_KEY, _analysisSettings.IgnoredPatterns.Count);
-
-            for (var i = 0; i < _analysisSettings.IgnoredPatterns.Count; i++)
-            {
-                EditorPrefs.SetString($"{AnalysisSettings.PATTERNS_PREFS_KEY}_{i}", _analysisSettings.IgnoredPatterns[i]);
+                _analysisSettings.TryLoadIgnoredPatternsAsset();
             }
         }
         
