@@ -89,12 +89,18 @@ to view the list of all your project assets with their references number, files 
 - Or use deprecated URL `https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git#upm` for previous UPM support added via [template](https://github.com/STARasGAMES/Unity-package-repo-setup-template). However this link won't get new updates.
  2. You can also just copy and paste file [DependenciesHunter.cs](./Editor/DependenciesHunter.cs) inside Editor folder 
 
+---
+
 ## Contributions
 
 Feel free to [report bugs, request new features](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/issues) 
 or to [contribute](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/pulls) to this project! 
 
 ## Other tools
+
+##### Addressables Inspector
+
+- To analyze addressables layout [Addressables-Inspector](https://github.com/AlexeyPerov/Unity-Addressables-Inspector).
 
 ##### Missing References Hunter
 
@@ -108,7 +114,12 @@ or to [contribute](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/pull
 
 - To analyze your materials and renderers see [Materials-Hunter](https://github.com/AlexeyPerov/Unity-Materials-Hunter).
 
+##### Asset Inspector
+
+- To analyze asset dependencies [Asset-Inspector](https://github.com/AlexeyPerov/Unity-Asset-Inspector).
+
 ##### Editor Coroutines
 
 - Unity Editor Coroutines alternative version [Lite-Editor-Coroutines](https://github.com/AlexeyPerov/Unity-Lite-Editor-Coroutines).
 - Simplified and compact version [Pocket-Editor-Coroutines](https://github.com/AlexeyPerov/Unity-Pocket-Editor-Coroutines).
+
