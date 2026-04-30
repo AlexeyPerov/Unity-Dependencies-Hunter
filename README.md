@@ -27,6 +27,18 @@ to find dependencies for each of those assets. As a result dependencies map is f
 Then it simply finds all assets which are not presented as a dependency within this map.
 Such assets considered as unused if they aren't marked as to be ignored in this analysis (by a list of RegExp patterns).
 
+## What counts as a dependency
+
+The main analysis is based on Unity's `AssetDatabase.GetDependencies`, so it follows the references Unity exposes through asset serialization and import data.
+
+Optional analysis settings can extend this:
+
+- `Scan Addressables AssetReferences` treats serialized Addressables `AssetReference` fields as regular dependencies.
+- `Detect Addressables` marks assets registered in Addressables settings and keeps them out of delete eligibility.
+- Terrain-data reference scanning can be enabled to catch terrain-related asset links that are easy to miss in regular dependency output.
+
+Please note that runtime-only references are still possible false positives: assets loaded by string path, custom registries, reflection, remote catalogs, or code-generated paths may not be visible to Unity dependency APIs.
+
 ## Addressables
 
 To enable addressables usage uncomment the first line
@@ -59,6 +71,9 @@ The tool has two ways to use it. Each has a menu option, and an editor window.
 ## To then delete the assets you filtered
 ..click on "Tools/Dependencies Hunter" and then click on Delete Unused Assets
 
+Only assets with zero detected references and not marked as Addressable are eligible for deletion.
+Use the selection/backup controls in the results window to review assets before applying deletion.
+
 ![plot](./Screenshots~/project_analysis_unused.png)
 
 ## To list all references towards selected assets..
@@ -78,6 +93,17 @@ In the Analysis Settings foldout you can set files to be ignored by providing a 
 You can also uncheck the 'Show Unreferenced Assets Only' toggle 
 to view the list of all your project assets with their references number, files sizes etc.
 
+The output list supports:
+
+- Path filtering by substring.
+- Type filtering by asset type.
+- Sorting by type, path, or file size.
+- Pagination for large projects; very large result sets stay paged to keep the editor responsive.
+- Export to clipboard and CSV for the currently filtered rows.
+
+Ignore patterns are regular expressions matched against asset paths.
+You can create a custom `DependenciesHunterIgnorePatterns.asset` under `Assets/Editor` from the settings foldout, or delete that settings asset to restore the built-in defaults on the next run.
+
 | Analysis Settings                           | Listing all Assets                               |
 |---------------------------------------------|--------------------------------------------------|
 | ![plot](./Screenshots~/ignore_patterns.png) | ![plot](./Screenshots~/project_analysis_all.png) |
@@ -93,8 +119,10 @@ to view the list of all your project assets with their references number, files 
 
 ## Contributions
 
-Feel free to [report bugs, request new features](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/issues) 
-or to [contribute](https://github.com/AlexeyPerov/Unity-Dependencies-Hunter/pulls) to this project! 
+Feel free to report bugs, request new features
+or to contribute to this project!
+
+---
 
 ## Other tools
 
