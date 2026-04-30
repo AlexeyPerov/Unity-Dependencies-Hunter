@@ -6,9 +6,18 @@
 
 ##
 This tool finds and/or deletes unreferenced assets in Unity project.
+It can also list all assets in project and show who reference them.
+
+Addressables and AssetReference detection is also supported. Enable it in tool settings if needed.
 
 All code combined into one script for easier portability.
 So you can just copy-paste [DependenciesHunter.cs](./Editor/DependenciesHunter.cs) to your project in any Editor folder.
+You can also install it via UPM using link https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git.
+
+This tool [Asset-Inspector](https://github.com/AlexeyPerov/Unity-Asset-Inspector) does opposite analysis providing a list of dependencies for selected assets.
+So they might be useful in combination.
+
+Complete list of other tools see in the end of this document.
 
 # How it works
 
@@ -41,12 +50,7 @@ Please note that runtime-only references are still possible false positives: ass
 
 ## Addressables
 
-To enable addressables usage uncomment the first line
-
-```code
-// #define HUNT_ADDRESSABLES
-```
-or add HUNT_ADDRESSABLES to the 'Scripting Define Settings' in PlayerSettings
+To enable addressables detection toggle option 'Detect Addressables'. In that case unreferenced assets which are addressables are not considered as unused by the tool and not shown by default.
 
 ### AssetReference search
 
@@ -54,34 +58,26 @@ By default Addressables AssetReference properties are not considered as a depend
 and thus are ignored by the tool.
 
 However if you want to treat them as regular references go to Analysis Settings and set 'ScanForAssetReferences' toggle to true.
-
-Defining HUNT_ADDRESSABLES define also adds two more options to the context menu
-- [DH] Find References In Project (incl Asset References)
-- [DH] Find References In Project (incl Asset References)(Previous Cache)
-
-This options also treat AssetReference as a regular dependency.
+Please note that this will make analysis a little bit longer since it changes the underlying mechanics and requires parsing assets as text.
 
 # Ways of usage
 
 The tool has two ways to use it. Each has a menu option, and an editor window.
 
 ## To list all unused assets in your project..
-..click on "Tools/Dependencies Hunter" option which will open the "AllProjectAssetsReferencesWindow" window.
-
-## To then delete the assets you filtered
-..click on "Tools/Dependencies Hunter" and then click on Delete Unused Assets
-
-Only assets with zero detected references and not marked as Addressable are eligible for deletion.
-Use the selection/backup controls in the results window to review assets before applying deletion.
+..click on "Tools/Dependencies Hunter" option which will open the "Dependencies Hunter" window.
 
 ![plot](./Screenshots~/project_analysis_unused.png)
 
+Here you can analyze project and perform unused assets deletion.
+Only assets with zero detected references and not marked as Addressable (if 'Detect Addressables' is enabled) are eligible for deletion.
+Use the selection/backup controls in the results window to review assets before applying deletion.
+
+![plot](./Screenshots~/dh-selection-backup.png)
+
 ## To list all references towards selected assets..
 ..select the assets and use a context menu option "[DH] Find References in Project".
-It will open the "SelectedAssetsReferencesWindow" window with the results. 
-
-There is also an option "[DH] Find References in Project (Previous Cache)" which will try to use the dependencies database cache from the previous launch and so will perform much faster. 
-This might be useful if for example you want to run multiple analysis without changing assets.
+It will open the "Selected Assets" window with the results. 
 
 | Context Menu                             | Result Window                                   |
 |------------------------------------------|-------------------------------------------------|
@@ -93,26 +89,16 @@ In the Analysis Settings foldout you can set files to be ignored by providing a 
 You can also uncheck the 'Show Unreferenced Assets Only' toggle 
 to view the list of all your project assets with their references number, files sizes etc.
 
-The output list supports:
-
-- Path filtering by substring.
-- Type filtering by asset type.
-- Sorting by type, path, or file size.
-- Pagination for large projects; very large result sets stay paged to keep the editor responsive.
-- Export to clipboard and CSV for the currently filtered rows.
-
 Ignore patterns are regular expressions matched against asset paths.
 You can create a custom `DependenciesHunterIgnorePatterns.asset` under `Assets/Editor` from the settings foldout, or delete that settings asset to restore the built-in defaults on the next run.
 
 | Analysis Settings                           | Listing all Assets                               |
 |---------------------------------------------|--------------------------------------------------|
-| ![plot](./Screenshots~/ignore_patterns.png) | ![plot](./Screenshots~/project_analysis_all.png) |
+| ![plot](./Screenshots~/dh-settings.png) | ![plot](./Screenshots~/project_analysis_all.png) |
 
 ## Installation
 
- 1. Using Unity's Package Manager.
-- Use this URL https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git.
-- Or use deprecated URL `https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git#upm` for previous UPM support added via [template](https://github.com/STARasGAMES/Unity-package-repo-setup-template). However this link won't get new updates.
+ 1. Using Unity's Package Manager via https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git.
  2. You can also just copy and paste file [DependenciesHunter.cs](./Editor/DependenciesHunter.cs) inside Editor folder 
 
 ---
