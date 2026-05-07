@@ -112,6 +112,10 @@ or to contribute to this project!
 
 ## Other tools
 
+##### Unity Scanner
+
+- To analyze the whole project for various issues [Unity-Scanner](https://github.com/AlexeyPerov/Unity-Scanner).
+
 ##### Addressables Inspector
 
 - To analyze addressables layout [Addressables-Inspector](https://github.com/AlexeyPerov/Unity-Addressables-Inspector).
