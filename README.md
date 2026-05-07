@@ -14,10 +14,12 @@ All code combined into one script for easier portability.
 So you can just copy-paste [DependenciesHunter.cs](./Editor/DependenciesHunter.cs) to your project in any Editor folder.
 You can also install it via UPM using link https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git.
 
-This tool [Asset-Inspector](https://github.com/AlexeyPerov/Unity-Asset-Inspector) does opposite analysis providing a list of dependencies for selected assets.
-So they might be useful in combination.
-
 Complete list of other tools see in the end of this document.
+
+---
+
+![unity](https://img.shields.io/badge/Unity-100000?style=for-the-badge&logo=unity&logoColor=white)
+#### If you need a full project analysis tool (including dependencies, unused assets and many more) have a look at [Unity-Scanner](https://github.com/AlexeyPerov/Unity-Scanner) 
 
 # How it works
 
