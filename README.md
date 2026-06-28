@@ -14,12 +14,12 @@ All code combined into one script for easier portability.
 So you can just copy-paste [DependenciesHunter.cs](./Editor/DependenciesHunter.cs) to your project in any Editor folder.
 You can also install it via UPM using link https://github.com/AlexeyPerov/Unity-Dependencies-Hunter.git.
 
+![unity](https://img.shields.io/badge/Unity-100000?style=for-the-badge&logo=unity&logoColor=white)
+#### If you are interested in MCP for Unity have a look at [Unity-Open-MCP](https://github.com/AlexeyPerov/Unity-Open-MCP) 
+
 Complete list of other tools see in the end of this document.
 
 ---
-
-![unity](https://img.shields.io/badge/Unity-100000?style=for-the-badge&logo=unity&logoColor=white)
-#### If you need a full project analysis tool (including dependencies, unused assets and many more) have a look at [Unity-Scanner](https://github.com/AlexeyPerov/Unity-Scanner) 
 
 # How it works
 
@@ -114,9 +114,13 @@ or to contribute to this project!
 
 ## Other tools
 
+##### Unity Open MCP
+
+- To get a complete set of tools to use AI with Unity see [Unity-Open-MCP](https://github.com/AlexeyPerov/Unity-Open-MCP).
+
 ##### Unity Scanner
 
-- To analyze the whole project for various issues [Unity-Scanner](https://github.com/AlexeyPerov/Unity-Scanner).
+- To analyze the whole project for various issues see [Unity-Scanner](https://github.com/AlexeyPerov/Unity-Scanner).
 
 ##### Addressables Inspector
 
@@ -136,7 +140,7 @@ or to contribute to this project!
 
 ##### Asset Inspector
 
-- To analyze asset dependencies [Asset-Inspector](https://github.com/AlexeyPerov/Unity-Asset-Inspector).
+- To analyze asset dependencies see [Asset-Inspector](https://github.com/AlexeyPerov/Unity-Asset-Inspector).
 
 ##### Editor Coroutines
 
