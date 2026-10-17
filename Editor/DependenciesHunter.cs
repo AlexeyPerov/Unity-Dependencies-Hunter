@@ -227,8 +227,6 @@ namespace DependenciesHunter
             public int SortType { get; set; }
         }
 
-        private ProjectAssetsAnalysisUtilities _service;
-        
         private Result _result;
         private OutputSettings _outputSettings;
         private AnalysisSettings _analysisSettings;
@@ -260,10 +258,7 @@ namespace DependenciesHunter
             _result = new Result(_analysisSettings.FindUnreferencedOnly);
             _outputSettings = new OutputSettings();
             _cachedFilteredAssets = null;
-            CommonUtilities.ClearAddressablesCache();
 
-            _service = new ProjectAssetsAnalysisUtilities();
-            
             Clear();
 
             if (!_result.FindUnreferencedOnly)
@@ -278,72 +273,21 @@ namespace DependenciesHunter
             
             Show();
 
-            DependenciesMapUtilities.FillReverseDependenciesMap(
-                _analysisSettings.ScanForAssetReferences, 
-                EditorSettings.serializationMode != SerializationMode.ForceText, 
+            var analysis = UnreferencedAssetsAnalysis.Run(
+                _analysisSettings.FindUnreferencedOnly,
+                _analysisSettings.ScanForAssetReferences,
                 _analysisSettings.ScanForTerrainDataReferences,
-                out var map);
+                _analysisSettings.TryUseReflectionForAddressablesDetection,
+                _analysisSettings.IgnoredPatterns);
 
-            EditorUtility.ClearProgressBar();
+            _result.Assets.AddRange(analysis.Assets);
 
             var filteredOutput = new StringBuilder();
             filteredOutput.AppendLine("Assets ignored by pattern:");
 
-            var compiledPatterns = ProjectAssetsAnalysisUtilities.CompilePatterns(_analysisSettings.IgnoredPatterns);
-            
-            var count = 0;
-            var mapCount = map.Count;
-            var progressInterval = Math.Max(1, mapCount / 100);
-
-            foreach (var mapElement in map)
+            foreach (var ignoredPath in analysis.IgnoredPaths)
             {
-                if (count % progressInterval == 0)
-                {
-                    EditorUtility.DisplayProgressBar("Unreferenced Assets", "Searching for unreferenced assets",
-                        (float)count / mapCount);
-                }
-                count++;
-
-                var assetPath = mapElement.Key;
-                var falsePositiveWarning = string.Empty;
-                var referencesCount = mapElement.Value.Count;
-
-                var type = AssetDatabase.GetMainAssetTypeAtPath(assetPath);
-
-                if (referencesCount == 1 && type == typeof(Texture2D))
-                {
-                    var reference = mapElement.Value[0];
-                    var referenceType = AssetDatabase.GetMainAssetTypeAtPath(reference);
-                    if (referenceType == typeof(SpriteAtlas))
-                    {
-                        falsePositiveWarning = $"Sprite references only its atlas {reference}";
-                        referencesCount = 0;
-                    }
-                }
-
-                if (_result.FindUnreferencedOnly && referencesCount != 0) 
-                    continue;
-                
-                var validForOutput = ProjectAssetsAnalysisUtilities.IsValidForOutput(assetPath, compiledPatterns);
-                var validAssetType = _service.IsValidAssetType(assetPath, type, validForOutput);
-
-                if (!validAssetType) 
-                    continue;
-                    
-                if (validForOutput)
-                {
-                    _result.Assets.Add(AssetData.Create(
-                        assetPath,
-                        type,
-                        referencesCount,
-                        mapElement.Value,
-                        falsePositiveWarning,
-                        _analysisSettings.TryUseReflectionForAddressablesDetection));
-                }
-                else
-                {
-                    filteredOutput.AppendLine(assetPath);
-                }
+                filteredOutput.AppendLine(ignoredPath);
             }
 
             foreach (var group in _result.Assets.GroupBy(x => x.TypeName))
@@ -2450,6 +2394,579 @@ namespace DependenciesHunter
             }
 
             return backedUpCount;
+        }
+    }
+
+    /// <summary>
+    /// UI-independent unreferenced assets analysis shared by <see cref="AllProjectAssetsReferencesWindow"/>
+    /// and <see cref="DependenciesHunterApi"/>.
+    /// </summary>
+    internal static class UnreferencedAssetsAnalysis
+    {
+        internal sealed class Output
+        {
+            public List<AssetData> Assets { get; } = new List<AssetData>();
+            public List<string> IgnoredPaths { get; } = new List<string>();
+        }
+
+        internal static Output Run(
+            bool findUnreferencedOnly,
+            bool scanAssetReferences,
+            bool scanTerrainDataReferences,
+            bool tryUseReflectionForAddressablesDetection,
+            List<string> ignoredPatterns)
+        {
+            var output = new Output();
+            var service = new ProjectAssetsAnalysisUtilities();
+
+            CommonUtilities.ClearAddressablesCache();
+
+            try
+            {
+                DependenciesMapUtilities.FillReverseDependenciesMap(
+                    scanAssetReferences,
+                    EditorSettings.serializationMode != SerializationMode.ForceText,
+                    scanTerrainDataReferences,
+                    out var map);
+
+                EditorUtility.ClearProgressBar();
+
+                var compiledPatterns = ProjectAssetsAnalysisUtilities.CompilePatterns(ignoredPatterns);
+
+                var count = 0;
+                var mapCount = map.Count;
+                var progressInterval = Math.Max(1, mapCount / 100);
+
+                foreach (var mapElement in map)
+                {
+                    if (count % progressInterval == 0)
+                    {
+                        EditorUtility.DisplayProgressBar("Unreferenced Assets", "Searching for unreferenced assets",
+                            (float)count / mapCount);
+                    }
+                    count++;
+
+                    var assetPath = mapElement.Key;
+                    var falsePositiveWarning = string.Empty;
+                    var referencesCount = mapElement.Value.Count;
+
+                    var type = AssetDatabase.GetMainAssetTypeAtPath(assetPath);
+
+                    if (referencesCount == 1 && type == typeof(Texture2D))
+                    {
+                        var reference = mapElement.Value[0];
+                        var referenceType = AssetDatabase.GetMainAssetTypeAtPath(reference);
+                        if (referenceType == typeof(SpriteAtlas))
+                        {
+                            falsePositiveWarning = $"Sprite references only its atlas {reference}";
+                            referencesCount = 0;
+                        }
+                    }
+
+                    if (findUnreferencedOnly && referencesCount != 0)
+                        continue;
+
+                    var validForOutput = ProjectAssetsAnalysisUtilities.IsValidForOutput(assetPath, compiledPatterns);
+                    var validAssetType = service.IsValidAssetType(assetPath, type, validForOutput);
+
+                    if (!validAssetType)
+                        continue;
+
+                    if (validForOutput)
+                    {
+                        output.Assets.Add(AssetData.Create(
+                            assetPath,
+                            type,
+                            referencesCount,
+                            mapElement.Value,
+                            falsePositiveWarning,
+                            tryUseReflectionForAddressablesDetection));
+                    }
+                    else
+                    {
+                        output.IgnoredPaths.Add(assetPath);
+                    }
+                }
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+
+            return output;
+        }
+    }
+
+    /// <summary>
+    /// Settings for <see cref="DependenciesHunterApi"/>. Defaults match the Dependencies Hunter window defaults.
+    /// EditorPrefs are never read, so the result does not depend on the machine the analysis runs on.
+    /// </summary>
+    public class DependenciesHunterOptions
+    {
+        /// <summary>
+        /// When false, the report lists referenced assets too (with their references count).
+        /// </summary>
+        public bool FindUnreferencedOnly { get; set; } = true;
+
+        /// <summary>
+        /// Scan also for Addressables AssetReference properties. NOTE: this might make scanning longer.
+        /// </summary>
+        public bool ScanForAssetReferences { get; set; }
+
+        public bool ScanForTerrainDataReferences { get; set; }
+
+        public bool TryUseReflectionForAddressablesDetection { get; set; }
+
+        /// <summary>
+        /// Regex patterns of paths excluded from the report.
+        /// When null, patterns from Assets/Editor/DependenciesHunterIgnorePatterns.asset are used
+        /// if that asset exists, otherwise the built-in defaults.
+        /// </summary>
+        public List<string> IgnoredPatterns { get; set; }
+    }
+
+    public sealed class DependenciesHunterReportEntry
+    {
+        internal DependenciesHunterReportEntry(AssetData data)
+        {
+            Path = data.Path;
+            TypeName = data.TypeName;
+            SizeBytes = data.BytesSize;
+            IsAddressable = data.IsAddressable;
+            ReferencesCount = data.ReferencesCount;
+            ReferencedByPaths = data.ReferencedByPaths.ToList();
+            FalsePositiveWarning = data.FalsePositiveWarning ?? string.Empty;
+        }
+
+        public string Path { get; }
+        public string TypeName { get; }
+        public long SizeBytes { get; }
+        public bool IsAddressable { get; }
+        public int ReferencesCount { get; }
+        public IReadOnlyList<string> ReferencedByPaths { get; }
+
+        /// <summary>
+        /// Non-empty when the asset is reported as unreferenced although something points to it
+        /// (e.g. a sprite referenced only by its atlas).
+        /// </summary>
+        public string FalsePositiveWarning { get; }
+
+        public bool IsUnreferenced => ReferencesCount == 0;
+    }
+
+    public sealed class DependenciesHunterReport
+    {
+        internal DependenciesHunterReport(
+            bool findUnreferencedOnly,
+            List<DependenciesHunterReportEntry> assets,
+            List<string> ignoredPaths,
+            double durationSeconds)
+        {
+            FindUnreferencedOnly = findUnreferencedOnly;
+            Assets = assets;
+            UnreferencedAssets = assets.Where(x => x.IsUnreferenced).ToList();
+            IgnoredPaths = ignoredPaths;
+            DurationSeconds = durationSeconds;
+
+            Summary = findUnreferencedOnly
+                ? $"Dependencies Hunter: {UnreferencedAssets.Count} unreferenced asset(s) found."
+                : $"Dependencies Hunter: {UnreferencedAssets.Count} unreferenced asset(s) found " +
+                  $"among {Assets.Count} listed asset(s).";
+        }
+
+        public bool FindUnreferencedOnly { get; }
+
+        /// <summary>
+        /// All listed assets: only unreferenced ones unless <see cref="DependenciesHunterOptions.FindUnreferencedOnly"/>
+        /// is false. Sorted by path.
+        /// </summary>
+        public IReadOnlyList<DependenciesHunterReportEntry> Assets { get; }
+
+        public IReadOnlyList<DependenciesHunterReportEntry> UnreferencedAssets { get; }
+
+        /// <summary>
+        /// Paths excluded from the report by the ignored patterns.
+        /// </summary>
+        public IReadOnlyList<string> IgnoredPaths { get; }
+
+        public double DurationSeconds { get; }
+
+        public string Summary { get; }
+
+        public bool HasIssues => UnreferencedAssets.Count > 0;
+
+        /// <summary>
+        /// Summary followed by one line per unreferenced asset. Handy as an assertion message.
+        /// </summary>
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine(Summary);
+
+            foreach (var asset in UnreferencedAssets)
+            {
+                sb.Append(asset.Path);
+
+                if (!string.IsNullOrEmpty(asset.FalsePositiveWarning))
+                {
+                    sb.Append(" (").Append(asset.FalsePositiveWarning).Append(')');
+                }
+
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
+
+        public string ToJson()
+        {
+            var json = new ReportJsonWriter();
+
+            json.BeginObject();
+            json.Property("tool", "Dependencies Hunter");
+            json.Property("unityVersion", Application.unityVersion);
+            json.Property("findUnreferencedOnly", FindUnreferencedOnly);
+            json.Property("hasIssues", HasIssues);
+            json.Property("summary", Summary);
+            json.Property("durationSeconds", DurationSeconds);
+            json.Property("unreferencedCount", UnreferencedAssets.Count);
+            json.Property("ignoredCount", IgnoredPaths.Count);
+
+            json.BeginArray("assets");
+            foreach (var asset in Assets)
+            {
+                json.BeginObject();
+                json.Property("path", asset.Path);
+                json.Property("type", asset.TypeName);
+                json.Property("sizeBytes", asset.SizeBytes);
+                json.Property("isAddressable", asset.IsAddressable);
+                json.Property("referencesCount", asset.ReferencesCount);
+                json.Property("falsePositiveWarning", asset.FalsePositiveWarning);
+                json.StringArray("referencedBy", asset.ReferencedByPaths);
+                json.EndObject();
+            }
+            json.EndArray();
+
+            json.EndObject();
+
+            return json.ToString();
+        }
+    }
+
+    /// <summary>
+    /// Entry point for using Dependencies Hunter from code: tests, CI, build scripts.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// var report = DependenciesHunterApi.FindUnreferencedAssets();
+    /// Assert.IsFalse(report.HasIssues, report.ToString());
+    /// </code>
+    /// Command line (exit code: 0 - no unreferenced assets, 1 - unreferenced assets found, 2 - analysis failed):
+    /// <code>
+    /// Unity -batchmode -projectPath . -executeMethod DependenciesHunter.DependenciesHunterApi.RunFromCommandLine -reportPath dh-report.json
+    /// </code>
+    /// </example>
+    public static class DependenciesHunterApi
+    {
+        public const int ExitCodeNoIssues = 0;
+        public const int ExitCodeIssuesFound = 1;
+        public const int ExitCodeFailed = 2;
+
+        /// <summary>
+        /// Runs the same analysis as the "Run Analysis" button of the Dependencies Hunter window.
+        /// Synchronous, no window is opened.
+        /// </summary>
+        public static DependenciesHunterReport FindUnreferencedAssets(DependenciesHunterOptions options = null)
+        {
+            options ??= new DependenciesHunterOptions();
+
+            var stopWatch = Stopwatch.StartNew();
+
+            var analysis = UnreferencedAssetsAnalysis.Run(
+                options.FindUnreferencedOnly,
+                options.ScanForAssetReferences,
+                options.ScanForTerrainDataReferences,
+                options.TryUseReflectionForAddressablesDetection,
+                ResolveIgnoredPatterns(options));
+
+            stopWatch.Stop();
+
+            var entries = analysis.Assets
+                .OrderBy(x => x.Path, StringComparer.Ordinal)
+                .Select(x => new DependenciesHunterReportEntry(x))
+                .ToList();
+
+            return new DependenciesHunterReport(options.FindUnreferencedOnly, entries,
+                new List<string>(analysis.IgnoredPaths), stopWatch.Elapsed.TotalSeconds);
+        }
+
+        /// <summary>
+        /// For every given asset path returns paths of assets referencing it
+        /// (same as "Assets/[DH] Find References In Project"). Unknown paths get an empty list.
+        /// </summary>
+        public static IReadOnlyDictionary<string, IReadOnlyList<string>> FindReferences(
+            IEnumerable<string> assetPaths, DependenciesHunterOptions options = null)
+        {
+            if (assetPaths == null)
+                throw new ArgumentNullException(nameof(assetPaths));
+
+            options ??= new DependenciesHunterOptions();
+
+            Dictionary<string, List<string>> map;
+
+            try
+            {
+                DependenciesMapUtilities.FillReverseDependenciesMap(
+                    options.ScanForAssetReferences,
+                    EditorSettings.serializationMode != SerializationMode.ForceText,
+                    options.ScanForTerrainDataReferences,
+                    out map);
+            }
+            finally
+            {
+                EditorUtility.ClearProgressBar();
+            }
+
+            var result = new Dictionary<string, IReadOnlyList<string>>();
+
+            foreach (var assetPath in assetPaths)
+            {
+                if (string.IsNullOrEmpty(assetPath) || result.ContainsKey(assetPath))
+                    continue;
+
+                result[assetPath] = map.TryGetValue(assetPath, out var references)
+                    ? new List<string>(references)
+                    : new List<string>();
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Use with -executeMethod. Quits the Editor with <see cref="ExitCodeNoIssues"/>,
+        /// <see cref="ExitCodeIssuesFound"/> or <see cref="ExitCodeFailed"/>.
+        /// Arguments:
+        /// -reportPath &lt;file&gt; - write the report as JSON;
+        /// -includeReferenced - list referenced assets too;
+        /// -scanAssetReferences, -scanTerrainData, -detectAddressables - same as the window analysis settings.
+        /// </summary>
+        public static void RunFromCommandLine()
+        {
+            EditorApplication.Exit(ExecuteCommandLine(Environment.GetCommandLineArgs()));
+        }
+
+        /// <summary>
+        /// Same as <see cref="RunFromCommandLine"/> but returns the exit code instead of quitting.
+        /// </summary>
+        public static int ExecuteCommandLine(string[] args)
+        {
+            try
+            {
+                args ??= Array.Empty<string>();
+
+                var options = new DependenciesHunterOptions
+                {
+                    FindUnreferencedOnly = !CommandLineUtilities.HasFlag(args, "-includeReferenced"),
+                    ScanForAssetReferences = CommandLineUtilities.HasFlag(args, "-scanAssetReferences"),
+                    ScanForTerrainDataReferences = CommandLineUtilities.HasFlag(args, "-scanTerrainData"),
+                    TryUseReflectionForAddressablesDetection = CommandLineUtilities.HasFlag(args, "-detectAddressables")
+                };
+
+                var report = FindUnreferencedAssets(options);
+
+                var reportPath = CommandLineUtilities.GetValue(args, "-reportPath");
+                if (!string.IsNullOrEmpty(reportPath))
+                {
+                    CommandLineUtilities.WriteAllText(reportPath, report.ToJson());
+                }
+
+                CommandLineUtilities.Log(report.ToString());
+
+                return report.HasIssues ? ExitCodeIssuesFound : ExitCodeNoIssues;
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"Dependencies Hunter analysis failed: {e}");
+                return ExitCodeFailed;
+            }
+        }
+
+        private static List<string> ResolveIgnoredPatterns(DependenciesHunterOptions options)
+        {
+            if (options.IgnoredPatterns != null)
+                return options.IgnoredPatterns;
+
+            var settings = new AllProjectAssetsReferencesWindow.AnalysisSettings();
+            settings.TryLoadIgnoredPatternsAsset();
+            return settings.IgnoredPatterns;
+        }
+    }
+
+    internal static class CommandLineUtilities
+    {
+        public static bool HasFlag(string[] args, string name)
+        {
+            return args.Any(x => string.Equals(x, name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public static string GetValue(string[] args, string name)
+        {
+            for (var i = 0; i < args.Length - 1; i++)
+            {
+                if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+                    return args[i + 1];
+            }
+
+            return null;
+        }
+
+        public static void WriteAllText(string path, string content)
+        {
+            var directory = Path.GetDirectoryName(Path.GetFullPath(path));
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            File.WriteAllText(path, content);
+        }
+
+        public static void Log(string message)
+        {
+            Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", message);
+        }
+    }
+
+    /// <summary>
+    /// Minimal indented JSON writer for reports (JsonUtility can't serialize properties or nested lists of strings
+    /// in a readable way).
+    /// </summary>
+    internal sealed class ReportJsonWriter
+    {
+        private readonly StringBuilder _sb = new StringBuilder();
+        private readonly Stack<bool> _hasItems = new Stack<bool>();
+
+        public void BeginObject(string name = null)
+        {
+            BeginItem(name);
+            _sb.Append('{');
+            _hasItems.Push(false);
+        }
+
+        public void EndObject()
+        {
+            EndScope('}');
+        }
+
+        public void BeginArray(string name = null)
+        {
+            BeginItem(name);
+            _sb.Append('[');
+            _hasItems.Push(false);
+        }
+
+        public void EndArray()
+        {
+            EndScope(']');
+        }
+
+        public void Property(string name, string value)
+        {
+            BeginItem(name);
+            AppendString(value);
+        }
+
+        public void Property(string name, bool value)
+        {
+            BeginItem(name);
+            _sb.Append(value ? "true" : "false");
+        }
+
+        public void Property(string name, long value)
+        {
+            BeginItem(name);
+            _sb.Append(value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        public void Property(string name, double value)
+        {
+            BeginItem(name);
+            _sb.Append(value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        public void StringArray(string name, IEnumerable<string> values)
+        {
+            BeginArray(name);
+            foreach (var value in values)
+            {
+                BeginItem(null);
+                AppendString(value);
+            }
+            EndArray();
+        }
+
+        public override string ToString()
+        {
+            return _sb.ToString();
+        }
+
+        private void BeginItem(string name)
+        {
+            if (_hasItems.Count > 0)
+            {
+                if (_hasItems.Pop())
+                    _sb.Append(',');
+                _hasItems.Push(true);
+
+                NewLine(_hasItems.Count);
+            }
+
+            if (name != null)
+            {
+                AppendString(name);
+                _sb.Append(": ");
+            }
+        }
+
+        private void EndScope(char closing)
+        {
+            var hadItems = _hasItems.Pop();
+            if (hadItems)
+                NewLine(_hasItems.Count);
+            _sb.Append(closing);
+        }
+
+        private void NewLine(int depth)
+        {
+            _sb.Append('\n');
+            _sb.Append(' ', depth * 2);
+        }
+
+        private void AppendString(string value)
+        {
+            if (value == null)
+            {
+                _sb.Append("null");
+                return;
+            }
+
+            _sb.Append('"');
+            foreach (var c in value)
+            {
+                switch (c)
+                {
+                    case '"': _sb.Append("\\\""); break;
+                    case '\\': _sb.Append("\\\\"); break;
+                    case '\n': _sb.Append("\\n"); break;
+                    case '\r': _sb.Append("\\r"); break;
+                    case '\t': _sb.Append("\\t"); break;
+                    default:
+                        if (c < ' ')
+                            _sb.Append("\\u").Append(((int)c).ToString("x4"));
+                        else
+                            _sb.Append(c);
+                        break;
+                }
+            }
+            _sb.Append('"');
         }
     }
 }

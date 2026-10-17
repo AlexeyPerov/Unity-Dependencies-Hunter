@@ -64,7 +64,7 @@ Please note that this will make analysis a little bit longer since it changes th
 
 # Ways of usage
 
-The tool has two ways to use it. Each has a menu option, and an editor window.
+The tool has two editor windows, each opened from a menu option, and a public API for tests and CI.
 
 ## To list all unused assets in your project..
 ..click on "Tools/Dependencies Hunter" option which will open the "Dependencies Hunter" window.
@@ -84,6 +84,42 @@ It will open the "Selected Assets" window with the results.
 | Context Menu                             | Result Window                                   |
 |------------------------------------------|-------------------------------------------------|
 | ![plot](./Screenshots~/context_menu.png) | ![plot](./Screenshots~/context_menu_result.png) |
+
+## Usage from code / CI
+
+`DependenciesHunterApi` runs the same analysis without opening a window, so you can fail a build or a test
+when unused assets appear. Settings are passed explicitly (`DependenciesHunterOptions`, defaults match the window),
+ignore patterns come from `Assets/Editor/DependenciesHunterIgnorePatterns.asset` if it exists.
+
+EditMode test:
+
+```csharp
+[Test]
+public void ProjectHasNoUnreferencedAssets()
+{
+    var report = DependenciesHunterApi.FindUnreferencedAssets();
+
+    foreach (var asset in report.UnreferencedAssets)
+        Console.WriteLine($"::error file={asset.Path}::Unreferenced asset {asset.Path}");
+
+    Assert.IsFalse(report.HasIssues, report.ToString());
+}
+```
+
+`DependenciesHunterApi.FindReferences(paths)` returns the assets referencing each given path
+(same as "[DH] Find References In Project").
+
+Command line (no test framework needed):
+
+```
+Unity -batchmode -projectPath <project> -logFile - \
+  -executeMethod DependenciesHunter.DependenciesHunterApi.RunFromCommandLine \
+  -reportPath Reports/dependencies-hunter.json
+```
+
+Exit code: `0` - no unreferenced assets, `1` - unreferenced assets found, `2` - analysis failed.
+Optional flags: `-includeReferenced`, `-scanAssetReferences`, `-scanTerrainData`, `-detectAddressables`.
+The JSON report lists every asset with its type, size, references count and referencing paths.
 
 ## Settings
 

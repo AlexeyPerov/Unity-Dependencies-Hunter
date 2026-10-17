@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 The changelog format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
+## [1.4.0] - Public API for tests and CI
+
+### Added
+- `DependenciesHunterApi`: `FindUnreferencedAssets` and `FindReferences` run the analysis from code without opening a window
+- `DependenciesHunterApi.RunFromCommandLine` entry point for `-executeMethod` with a JSON report (`-reportPath`) and exit codes
+
 ## [1.3.0] - 2026-04-30
 
 ### Added

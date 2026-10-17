@@ -1,6 +1,6 @@
 {
   "name": "dependencies-hunter",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "displayName": "Dependencies Hunter",
   "description": "Assets references analysis",
   "unity": "2022.3",
